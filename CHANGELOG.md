@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-05-10
 
 - Added hold-to-dictate hotkey daemon for left Control + left Windows.
 - Added bottom-center overlay with live waveform and state feedback.
