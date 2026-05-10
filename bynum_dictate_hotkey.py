@@ -19,7 +19,7 @@ from Xlib import XK, X, display
 from Xlib.ext import record
 from Xlib.protocol import rq
 
-from local_whisper_common import (
+from bynum_dictate_common import (
     APP_DIR,
     DEFAULT_VOCABULARY,
     MODEL_CACHE,
@@ -31,42 +31,42 @@ from local_whisper_common import (
 )
 
 LOG_PATH = STATE_DIR / "hotkey.log"
-LOCK_PATH = pathlib.Path(f"/tmp/local-whisper-hotkey-{os.getuid()}.lock")
+LOCK_PATH = pathlib.Path(f"/tmp/bynum-dictate-hotkey-{os.getuid()}.lock")
 VOCABULARY_PATH = DEFAULT_VOCABULARY
-VOCABULARY_MAX_CHARS = int(os.environ.get("LOCAL_WHISPER_VOCABULARY_MAX_CHARS", "1800"))
+VOCABULARY_MAX_CHARS = int(os.environ.get("BYNUM_DICTATE_VOCABULARY_MAX_CHARS", "1800"))
 
-MODEL_NAME = os.environ.get("LOCAL_WHISPER_MODEL", "distil-large-v3.5")
-COMPUTE_TYPE = os.environ.get("LOCAL_WHISPER_COMPUTE", "float16")
-LANGUAGE = os.environ.get("LOCAL_WHISPER_LANGUAGE", "en") or None
-DEVICE = os.environ.get("LOCAL_WHISPER_DEVICE", "cuda")
-BEAM_SIZE = int(os.environ.get("LOCAL_WHISPER_BEAM_SIZE", "3"))
-VAD_FILTER = os.environ.get("LOCAL_WHISPER_VAD", "0").lower() not in {"0", "false", "no", "off"}
-NO_SPEECH_THRESHOLD = float(os.environ.get("LOCAL_WHISPER_NO_SPEECH_THRESHOLD", "0.45"))
-VOICE_THRESHOLD = float(os.environ.get("LOCAL_WHISPER_VOICE_THRESHOLD", "0.012"))
-IGNORE_START_MS = int(os.environ.get("LOCAL_WHISPER_IGNORE_START_MS", "360"))
-MIN_SPEECH_MS = int(os.environ.get("LOCAL_WHISPER_MIN_SPEECH_MS", "180"))
-VISUAL_NOISE_FLOOR = float(os.environ.get("LOCAL_WHISPER_VISUAL_FLOOR", "0.003"))
-VISUAL_FLOOR_LEVEL = float(os.environ.get("LOCAL_WHISPER_VISUAL_LEVEL_FLOOR", "0.045"))
-VISUAL_CEILING = float(os.environ.get("LOCAL_WHISPER_VISUAL_CEILING", "0.90"))
-VISUAL_DB_FLOOR = float(os.environ.get("LOCAL_WHISPER_VISUAL_DB_FLOOR", "-48"))
-VISUAL_DB_CEILING = float(os.environ.get("LOCAL_WHISPER_VISUAL_DB_CEILING", "-5"))
+MODEL_NAME = os.environ.get("BYNUM_DICTATE_MODEL", "distil-large-v3.5")
+COMPUTE_TYPE = os.environ.get("BYNUM_DICTATE_COMPUTE", "float16")
+LANGUAGE = os.environ.get("BYNUM_DICTATE_LANGUAGE", "en") or None
+DEVICE = os.environ.get("BYNUM_DICTATE_DEVICE", "cuda")
+BEAM_SIZE = int(os.environ.get("BYNUM_DICTATE_BEAM_SIZE", "3"))
+VAD_FILTER = os.environ.get("BYNUM_DICTATE_VAD", "0").lower() not in {"0", "false", "no", "off"}
+NO_SPEECH_THRESHOLD = float(os.environ.get("BYNUM_DICTATE_NO_SPEECH_THRESHOLD", "0.45"))
+VOICE_THRESHOLD = float(os.environ.get("BYNUM_DICTATE_VOICE_THRESHOLD", "0.012"))
+IGNORE_START_MS = int(os.environ.get("BYNUM_DICTATE_IGNORE_START_MS", "360"))
+MIN_SPEECH_MS = int(os.environ.get("BYNUM_DICTATE_MIN_SPEECH_MS", "180"))
+VISUAL_NOISE_FLOOR = float(os.environ.get("BYNUM_DICTATE_VISUAL_FLOOR", "0.003"))
+VISUAL_FLOOR_LEVEL = float(os.environ.get("BYNUM_DICTATE_VISUAL_LEVEL_FLOOR", "0.045"))
+VISUAL_CEILING = float(os.environ.get("BYNUM_DICTATE_VISUAL_CEILING", "0.90"))
+VISUAL_DB_FLOOR = float(os.environ.get("BYNUM_DICTATE_VISUAL_DB_FLOOR", "-48"))
+VISUAL_DB_CEILING = float(os.environ.get("BYNUM_DICTATE_VISUAL_DB_CEILING", "-5"))
 VISUAL_BAR_COUNT = 5
-AUDIO_PREP = os.environ.get("LOCAL_WHISPER_AUDIO_PREP", "1").lower() not in {"0", "false", "no", "off"}
-AUDIO_LEAD_IN_MS = int(os.environ.get("LOCAL_WHISPER_LEAD_IN_MS", "40"))
-AUDIO_TAIL_PAD_MS = int(os.environ.get("LOCAL_WHISPER_TAIL_PAD_MS", "40"))
-AUDIO_NORMALIZE_PEAK = float(os.environ.get("LOCAL_WHISPER_NORMALIZE_PEAK", "0.86"))
-AUDIO_MAX_GAIN = float(os.environ.get("LOCAL_WHISPER_MAX_GAIN", "2.25"))
-AUDIO_NORMALIZE_MIN_PEAK = float(os.environ.get("LOCAL_WHISPER_NORMALIZE_MIN_PEAK", "0.025"))
-START_TONE_BEFORE_RECORD = os.environ.get("LOCAL_WHISPER_START_TONE_BEFORE_RECORD", "1") != "0"
-MAX_RECORD_SECONDS = float(os.environ.get("LOCAL_WHISPER_MAX_SECONDS", "45"))
-CHORD_GRACE_SECONDS = float(os.environ.get("LOCAL_WHISPER_CHORD_GRACE", "0.70"))
-RETRIGGER_COOLDOWN_SECONDS = float(os.environ.get("LOCAL_WHISPER_RETRIGGER_COOLDOWN", "0.30"))
-KEY_POLL_INTERVAL_SECONDS = float(os.environ.get("LOCAL_WHISPER_KEY_POLL_INTERVAL", "0.08"))
-LOCAL_FILES_ONLY = os.environ.get("LOCAL_WHISPER_LOCAL_ONLY", "1") != "0"
-TRAY_PYTHON = os.environ.get("LOCAL_WHISPER_TRAY_PYTHON", "/usr/bin/python3")
-BUSY_NOTICE_MS = int(os.environ.get("LOCAL_WHISPER_BUSY_NOTICE_MS", "650"))
-BUSY_STUCK_SECONDS = float(os.environ.get("LOCAL_WHISPER_BUSY_STUCK_SECONDS", "2.0"))
-BUSY_STUCK_NOTICE_MS = int(os.environ.get("LOCAL_WHISPER_BUSY_STUCK_NOTICE_MS", "8000"))
+AUDIO_PREP = os.environ.get("BYNUM_DICTATE_AUDIO_PREP", "1").lower() not in {"0", "false", "no", "off"}
+AUDIO_LEAD_IN_MS = int(os.environ.get("BYNUM_DICTATE_LEAD_IN_MS", "40"))
+AUDIO_TAIL_PAD_MS = int(os.environ.get("BYNUM_DICTATE_TAIL_PAD_MS", "40"))
+AUDIO_NORMALIZE_PEAK = float(os.environ.get("BYNUM_DICTATE_NORMALIZE_PEAK", "0.86"))
+AUDIO_MAX_GAIN = float(os.environ.get("BYNUM_DICTATE_MAX_GAIN", "2.25"))
+AUDIO_NORMALIZE_MIN_PEAK = float(os.environ.get("BYNUM_DICTATE_NORMALIZE_MIN_PEAK", "0.025"))
+START_TONE_BEFORE_RECORD = os.environ.get("BYNUM_DICTATE_START_TONE_BEFORE_RECORD", "1") != "0"
+MAX_RECORD_SECONDS = float(os.environ.get("BYNUM_DICTATE_MAX_SECONDS", "45"))
+CHORD_GRACE_SECONDS = float(os.environ.get("BYNUM_DICTATE_CHORD_GRACE", "0.70"))
+RETRIGGER_COOLDOWN_SECONDS = float(os.environ.get("BYNUM_DICTATE_RETRIGGER_COOLDOWN", "0.30"))
+KEY_POLL_INTERVAL_SECONDS = float(os.environ.get("BYNUM_DICTATE_KEY_POLL_INTERVAL", "0.08"))
+LOCAL_FILES_ONLY = os.environ.get("BYNUM_DICTATE_LOCAL_ONLY", "1") != "0"
+TRAY_PYTHON = os.environ.get("BYNUM_DICTATE_TRAY_PYTHON", "/usr/bin/python3")
+BUSY_NOTICE_MS = int(os.environ.get("BYNUM_DICTATE_BUSY_NOTICE_MS", "650"))
+BUSY_STUCK_SECONDS = float(os.environ.get("BYNUM_DICTATE_BUSY_STUCK_SECONDS", "2.0"))
+BUSY_STUCK_NOTICE_MS = int(os.environ.get("BYNUM_DICTATE_BUSY_STUCK_NOTICE_MS", "8000"))
 SAMPLE_RATE = 16000
 TONE_RATE = 44100
 SAMPLE_WIDTH = 2
@@ -95,7 +95,7 @@ def single_instance() -> object:
 
 class Overlay:
     def __init__(self, enabled: bool | None = None) -> None:
-        self.enabled = os.environ.get("LOCAL_WHISPER_OVERLAY", "1") != "0" if enabled is None else enabled
+        self.enabled = os.environ.get("BYNUM_DICTATE_OVERLAY", "1") != "0" if enabled is None else enabled
         self.proc: subprocess.Popen | None = None
         self.stderr = None
         if self.enabled:
@@ -103,7 +103,7 @@ class Overlay:
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 self.stderr = (STATE_DIR / "overlay.stderr").open("a", encoding="utf-8")
                 self.proc = subprocess.Popen(
-                    [sys.executable, str(APP_DIR / "local_whisper_overlay.py")],
+                    [sys.executable, str(APP_DIR / "bynum_dictate_overlay.py")],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.DEVNULL,
                     stderr=self.stderr,
@@ -150,7 +150,7 @@ class Overlay:
 
 class TrayIndicator:
     def __init__(self, enabled: bool | None = None) -> None:
-        self.enabled = os.environ.get("LOCAL_WHISPER_TRAY", "1") != "0" if enabled is None else enabled
+        self.enabled = os.environ.get("BYNUM_DICTATE_TRAY", "1") != "0" if enabled is None else enabled
         self.proc: subprocess.Popen | None = None
         self.stderr = None
         if self.enabled:
@@ -158,7 +158,7 @@ class TrayIndicator:
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 self.stderr = (STATE_DIR / "tray.stderr").open("a", encoding="utf-8")
                 self.proc = subprocess.Popen(
-                    [TRAY_PYTHON, str(APP_DIR / "local_whisper_tray.py")],
+                    [TRAY_PYTHON, str(APP_DIR / "bynum_dictate_tray.py")],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.DEVNULL,
                     stderr=self.stderr,
@@ -190,7 +190,7 @@ class TrayIndicator:
 
 
 def tone(kind: str, *, wait: bool = False) -> None:
-    if os.environ.get("LOCAL_WHISPER_SOUND", "1") == "0":
+    if os.environ.get("BYNUM_DICTATE_SOUND", "1") == "0":
         return
     player = shutil.which("paplay") or shutil.which("pw-play") or shutil.which("aplay")
     if not player:
@@ -224,7 +224,7 @@ def tone(kind: str, *, wait: bool = False) -> None:
     if wait:
         play()
     else:
-        threading.Thread(target=play, name=f"local-whisper-tone-{kind}", daemon=True).start()
+        threading.Thread(target=play, name=f"bynum-dictate-tone-{kind}", daemon=True).start()
 
 
 class Recording:
@@ -253,7 +253,7 @@ class Recording:
 class AudioRecorder:
     def __init__(self, overlay: Overlay) -> None:
         self.overlay = overlay
-        self.tmp = tempfile.TemporaryDirectory(prefix="local-whisper-hold-")
+        self.tmp = tempfile.TemporaryDirectory(prefix="bynum-dictate-hold-")
         self.path = pathlib.Path(self.tmp.name) / "recording.wav"
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
@@ -286,11 +286,11 @@ class AudioRecorder:
             f"--channels={CHANNELS}",
             "--latency-msec=20",
             "--process-time-msec=20",
-            "--client-name=Local Whisper",
+            "--client-name=Bynum Dictate",
             "--stream-name=Dictation",
         ]
         self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.thread = threading.Thread(target=self._read_loop, name="local-whisper-audio", daemon=True)
+        self.thread = threading.Thread(target=self._read_loop, name="bynum-dictate-audio", daemon=True)
         self.thread.start()
 
     def stop(self) -> Recording:
@@ -468,8 +468,8 @@ class ModelManager:
         self.error: Exception | None = None
         self.loading = False
         self.condition = threading.Condition()
-        if os.environ.get("LOCAL_WHISPER_PRELOAD", "1") != "0":
-            threading.Thread(target=self.get, name="local-whisper-model-loader", daemon=True).start()
+        if os.environ.get("BYNUM_DICTATE_PRELOAD", "1") != "0":
+            threading.Thread(target=self.get, name="bynum-dictate-model-loader", daemon=True).start()
 
     def get(self) -> WhisperModel:
         with self.condition:
@@ -614,7 +614,7 @@ class HoldToDictate:
                     log(f"stop ignored: no active recorder, phase={self.phase}")
             return
 
-        threading.Thread(target=self._finish, args=(recorder, focus_id), name="local-whisper-finish", daemon=True).start()
+        threading.Thread(target=self._finish, args=(recorder, focus_id), name="bynum-dictate-finish", daemon=True).start()
 
     def _finish(self, recorder: AudioRecorder, focus_id: int | None) -> None:
         recording: Recording | None = None
@@ -801,7 +801,7 @@ def main() -> None:
         finally:
             poll_display.close()
 
-    threading.Thread(target=poll_physical_keys, name="local-whisper-key-poller", daemon=True).start()
+    threading.Thread(target=poll_physical_keys, name="bynum-dictate-key-poller", daemon=True).start()
 
     def handle_event(event) -> None:
         if event.type not in (X.KeyPress, X.KeyRelease) or event.detail not in (left_control, left_super):
@@ -859,5 +859,5 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         log(f"fatal: {exc!r}")
-        print(f"local-whisper-hotkey: {exc}", file=sys.stderr)
+        print(f"bynum-dictate-hotkey: {exc}", file=sys.stderr)
         raise

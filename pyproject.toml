@@ -3,13 +3,13 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "local-whisper-dictation"
+name = "bynum-dictate"
 version = "0.1.0"
 description = "Local hold-to-dictate speech-to-text for Linux/X11 with NVIDIA GPU support."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Local Whisper contributors" }]
+authors = [{ name = "Bynum Dictate contributors" }]
 keywords = ["whisper", "dictation", "speech-to-text", "linux", "nvidia", "x11"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -40,25 +40,25 @@ dev = [
 ]
 
 [project.scripts]
-local-whisper = "local_whisper:main"
-local-whisper-dictate = "local_whisper_dictate:main"
-local-whisper-hotkey = "local_whisper_hotkey:main"
-local-whisper-restart = "local_whisper_restart:main"
+bynum-dictate = "bynum_dictate:main"
+bynum-dictate-once = "bynum_dictate_once:main"
+bynum-dictate-hotkey = "bynum_dictate_hotkey:main"
+bynum-dictate-restart = "bynum_dictate_restart:main"
 
 [project.urls]
-Homepage = "https://github.com/ZacharyBynum/local-whisper-dictation"
-Issues = "https://github.com/ZacharyBynum/local-whisper-dictation/issues"
+Homepage = "https://github.com/ZacharyBynum/bynum-dictate"
+Issues = "https://github.com/ZacharyBynum/bynum-dictate/issues"
 
 [tool.setuptools]
 py-modules = [
-  "local_whisper",
-  "local_whisper_common",
-  "local_whisper_dictate",
-  "local_whisper_hotkey",
-  "local_whisper_overlay",
-  "local_whisper_restart",
-  "local_whisper_text_render",
-  "local_whisper_tray",
+  "bynum_dictate",
+  "bynum_dictate_common",
+  "bynum_dictate_once",
+  "bynum_dictate_hotkey",
+  "bynum_dictate_overlay",
+  "bynum_dictate_restart",
+  "bynum_dictate_text_render",
+  "bynum_dictate_tray",
 ]
 
 [tool.pytest.ini_options]
@@ -74,4 +74,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"local_whisper_tray.py" = ["E402"]
+"bynum_dictate_tray.py" = ["E402"]

@@ -1,12 +1,12 @@
 # Contributing
 
-Thanks for improving Local Whisper. The project goal is a small, reliable Linux dictation tool that stays local by default.
+Thanks for improving Bynum Dictate. The project goal is a small, reliable Linux dictation tool that stays local by default.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/ZacharyBynum/local-whisper-dictation.git
-cd local-whisper-dictation
+git clone https://github.com/ZacharyBynum/bynum-dictate.git
+cd bynum-dictate
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip

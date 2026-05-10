@@ -1,9 +1,9 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Local Whisper Dictation
+Name=Bynum Dictate
 Comment=Start local hold-to-dictate hotkey
-Exec=sh -lc 'exec "$HOME/.local/bin/local-whisper-hotkey"'
+Exec=sh -lc 'exec "$HOME/.local/bin/bynum-dictate-hotkey"'
 Terminal=false
 Hidden=false
 StartupNotify=false

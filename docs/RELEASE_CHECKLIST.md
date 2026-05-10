@@ -10,7 +10,7 @@ make check
 
 ## Manual Desktop Checks
 
-- Start `local-whisper-hotkey`.
+- Start `bynum-dictate-hotkey`.
 - Confirm tray icon appears.
 - Hold left Control + left Windows and verify the overlay appears.
 - Speak a short sentence and confirm it pastes into a normal text field.
@@ -20,8 +20,8 @@ make check
 
 ## Privacy Checks
 
-- Confirm `LOCAL_WHISPER_LOCAL_ONLY=1` by default.
-- Confirm model download requires `--allow-download` or `LOCAL_WHISPER_LOCAL_ONLY=0`.
+- Confirm `BYNUM_DICTATE_LOCAL_ONLY=1` by default.
+- Confirm model download requires `--allow-download` or `BYNUM_DICTATE_LOCAL_ONLY=0`.
 - Confirm no telemetry, cloud transcription, or transcript upload was added.
 
 ## Repository Checks

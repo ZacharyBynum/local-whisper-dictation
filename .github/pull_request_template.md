@@ -4,7 +4,7 @@
 
 ## Validation
 
-- [ ] `python -m py_compile local_whisper*.py`
+- [ ] `python -m py_compile bynum_dictate*.py`
 - [ ] `ruff check .`
 - [ ] `pytest -q`
 - [ ] `bash -n install.sh`

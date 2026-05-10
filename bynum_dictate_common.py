@@ -9,13 +9,13 @@ import time
 from collections.abc import Callable
 
 APP_DIR = pathlib.Path(
-    os.environ.get("LOCAL_WHISPER_APP_DIR", str(pathlib.Path(__file__).resolve().parent))
+    os.environ.get("BYNUM_DICTATE_APP_DIR", str(pathlib.Path(__file__).resolve().parent))
 ).expanduser()
-CONFIG_DIR = pathlib.Path(os.environ.get("LOCAL_WHISPER_CONFIG_DIR", "~/.config/local-whisper")).expanduser()
-STATE_DIR = pathlib.Path(os.environ.get("LOCAL_WHISPER_STATE_DIR", "~/.local/state/local-whisper")).expanduser()
-MODEL_CACHE = pathlib.Path(os.environ.get("LOCAL_WHISPER_MODEL_CACHE", str(APP_DIR / "models"))).expanduser()
+CONFIG_DIR = pathlib.Path(os.environ.get("BYNUM_DICTATE_CONFIG_DIR", "~/.config/bynum-dictate")).expanduser()
+STATE_DIR = pathlib.Path(os.environ.get("BYNUM_DICTATE_STATE_DIR", "~/.local/state/bynum-dictate")).expanduser()
+MODEL_CACHE = pathlib.Path(os.environ.get("BYNUM_DICTATE_MODEL_CACHE", str(APP_DIR / "models"))).expanduser()
 DEFAULT_VOCABULARY = pathlib.Path(
-    os.environ.get("LOCAL_WHISPER_VOCABULARY", str(CONFIG_DIR / "vocabulary.txt"))
+    os.environ.get("BYNUM_DICTATE_VOCABULARY", str(CONFIG_DIR / "vocabulary.txt"))
 ).expanduser()
 
 TERMINAL_HINTS = {
@@ -54,7 +54,7 @@ TERMINAL_HINTS = {
 }
 
 Logger = Callable[[str], None]
-CLIPBOARD_READY_TIMEOUT = float(os.environ.get("LOCAL_WHISPER_CLIPBOARD_READY_TIMEOUT", "0.25"))
+CLIPBOARD_READY_TIMEOUT = float(os.environ.get("BYNUM_DICTATE_CLIPBOARD_READY_TIMEOUT", "0.25"))
 
 
 def load_vocabulary(

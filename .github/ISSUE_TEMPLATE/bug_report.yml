@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible Local Whisper problem.
+description: Report a reproducible Bynum Dictate problem.
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -23,7 +23,7 @@ body:
       label: Steps to reproduce
       description: Include the hotkey flow, app/window used, and whether the overlay/tray changed state.
       placeholder: |
-        1. Start local-whisper-hotkey
+        1. Start bynum-dictate-hotkey
         2. Hold left Control + left Windows
         3. Speak ...
     validations:

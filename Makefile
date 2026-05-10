@@ -5,7 +5,7 @@ PYTHON ?= python3
 check: compile lint test shell
 
 compile:
-	$(PYTHON) -m py_compile local_whisper*.py
+	$(PYTHON) -m py_compile bynum_dictate*.py
 
 lint:
 	ruff check .

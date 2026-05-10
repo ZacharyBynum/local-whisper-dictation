@@ -17,10 +17,10 @@ from gi.repository import GLib, Gtk
 ICON_READY = "audio-input-microphone"
 ICON_ACTIVE = "audio-status-microphone-high-symbolic"
 ICON_ERROR = "dialog-error-symbolic"
-CONFIG_DIR = pathlib.Path(os.environ.get("LOCAL_WHISPER_CONFIG_DIR", "~/.config/local-whisper")).expanduser()
-STATE_DIR = pathlib.Path(os.environ.get("LOCAL_WHISPER_STATE_DIR", "~/.local/state/local-whisper")).expanduser()
+CONFIG_DIR = pathlib.Path(os.environ.get("BYNUM_DICTATE_CONFIG_DIR", "~/.config/bynum-dictate")).expanduser()
+STATE_DIR = pathlib.Path(os.environ.get("BYNUM_DICTATE_STATE_DIR", "~/.local/state/bynum-dictate")).expanduser()
 VOCABULARY_PATH = pathlib.Path(
-    os.environ.get("LOCAL_WHISPER_VOCABULARY", str(CONFIG_DIR / "vocabulary.txt"))
+    os.environ.get("BYNUM_DICTATE_VOCABULARY", str(CONFIG_DIR / "vocabulary.txt"))
 ).expanduser()
 
 
@@ -28,8 +28,8 @@ class Tray:
     def __init__(self) -> None:
         self.current_status = "starting"
         self.icon = Gtk.StatusIcon.new_from_icon_name(ICON_READY)
-        self.icon.set_title("Local Whisper Dictation")
-        self.icon.set_tooltip_text("Local Whisper Dictation - starting")
+        self.icon.set_title("Bynum Dictate")
+        self.icon.set_tooltip_text("Bynum Dictate - starting")
         self.icon.set_visible(True)
         self.icon.connect("popup-menu", self._popup_menu)
 
@@ -38,25 +38,25 @@ class Tray:
         self.current_status = normalized
         if normalized in {"listening", "recording", "busy"}:
             icon_name = ICON_ACTIVE
-            tooltip = f"Local Whisper Dictation - {normalized}"
+            tooltip = f"Bynum Dictate - {normalized}"
         elif normalized in {"loading", "starting"}:
             icon_name = ICON_READY
-            tooltip = "Local Whisper Dictation - loading model"
+            tooltip = "Bynum Dictate - loading model"
         elif normalized in {"error", "clipboard error"}:
             icon_name = ICON_ERROR
-            tooltip = "Local Whisper Dictation - error"
+            tooltip = "Bynum Dictate - error"
         elif normalized in {"transcribing", "thinking", "finishing", "pasting", "pasted", "copied"}:
             icon_name = ICON_ACTIVE
-            tooltip = f"Local Whisper Dictation - {normalized}"
+            tooltip = f"Bynum Dictate - {normalized}"
         else:
             icon_name = ICON_READY
-            tooltip = "Local Whisper Dictation - ready"
+            tooltip = "Bynum Dictate - ready"
         self.icon.set_from_icon_name(icon_name)
         self.icon.set_tooltip_text(tooltip)
 
     def _popup_menu(self, icon, button: int, activate_time: int) -> None:
         menu = Gtk.Menu()
-        status = Gtk.MenuItem(label="Local Whisper Dictation")
+        status = Gtk.MenuItem(label="Bynum Dictate")
         status.set_sensitive(False)
         menu.append(status)
         current = Gtk.MenuItem(label=f"Status: {self.current_status}")

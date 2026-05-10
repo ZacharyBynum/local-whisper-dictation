@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 
-import local_whisper
+import bynum_dictate
 
 
 def build_args(args: list[str]) -> list[str]:
@@ -12,7 +12,7 @@ def build_args(args: list[str]) -> list[str]:
 
 def main() -> None:
     sys.argv = [sys.argv[0], *build_args(sys.argv[1:])]
-    local_whisper.main()
+    bynum_dictate.main()
 
 
 if __name__ == "__main__":

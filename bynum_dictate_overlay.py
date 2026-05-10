@@ -27,18 +27,18 @@ BAR_WIDTH = 7
 BAR_SPACING = 10
 BAR_X = 94
 BAR_FILL = "#f7f8fa"
-APP_DIR = pathlib.Path(os.environ.get("LOCAL_WHISPER_APP_DIR", str(pathlib.Path(__file__).resolve().parent))).expanduser()
-TEXT_RENDERER = APP_DIR / "local_whisper_text_render.py"
-TEXT_RENDER_PYTHON = os.environ.get("LOCAL_WHISPER_TEXT_RENDER_PYTHON", "/usr/bin/python3")
-RESTART_COMMAND = pathlib.Path(os.environ.get("LOCAL_WHISPER_RESTART_COMMAND", "~/.local/bin/local-whisper-restart")).expanduser()
+APP_DIR = pathlib.Path(os.environ.get("BYNUM_DICTATE_APP_DIR", str(pathlib.Path(__file__).resolve().parent))).expanduser()
+TEXT_RENDERER = APP_DIR / "bynum_dictate_text_render.py"
+TEXT_RENDER_PYTHON = os.environ.get("BYNUM_DICTATE_TEXT_RENDER_PYTHON", "/usr/bin/python3")
+RESTART_COMMAND = pathlib.Path(os.environ.get("BYNUM_DICTATE_RESTART_COMMAND", "~/.local/bin/bynum-dictate-restart")).expanduser()
 STATUS_IMAGE_WIDTH = 84
 STATUS_IMAGE_HEIGHT = 24
 SHOWN_ALPHA = 0.92
-ANIMATION_MS = int(os.environ.get("LOCAL_WHISPER_OVERLAY_ANIMATION_MS", "75"))
+ANIMATION_MS = int(os.environ.get("BYNUM_DICTATE_OVERLAY_ANIMATION_MS", "75"))
 ANIMATION_FRAME_MS = 16
-ANIMATION_OFFSET = int(os.environ.get("LOCAL_WHISPER_OVERLAY_ANIMATION_OFFSET", "10"))
-RENDER_INTERVAL_MS = int(os.environ.get("LOCAL_WHISPER_OVERLAY_RENDER_MS", "8"))
-IDLE_INTERVAL_MS = int(os.environ.get("LOCAL_WHISPER_OVERLAY_IDLE_MS", "16"))
+ANIMATION_OFFSET = int(os.environ.get("BYNUM_DICTATE_OVERLAY_ANIMATION_OFFSET", "10"))
+RENDER_INTERVAL_MS = int(os.environ.get("BYNUM_DICTATE_OVERLAY_RENDER_MS", "8"))
+IDLE_INTERVAL_MS = int(os.environ.get("BYNUM_DICTATE_OVERLAY_IDLE_MS", "16"))
 STATUS_LABELS = (
     "Listening",
     "Busy",
@@ -60,7 +60,7 @@ RESTART_STATUSES = {"Busy", "Stopping", "Thinking", "Pasting", "Clipboard error"
 
 
 def warn(message: str) -> None:
-    print(f"local-whisper-overlay: {message}", file=sys.stderr, flush=True)
+    print(f"bynum-dictate-overlay: {message}", file=sys.stderr, flush=True)
 
 
 def display_status(raw_status: object) -> str:
@@ -181,7 +181,7 @@ def main() -> None:
     threading.Thread(target=read_stdin, name="overlay-stdin", daemon=True).start()
 
     root = tk.Tk()
-    root.title("Local Whisper Overlay")
+    root.title("Bynum Dictate Overlay")
     root.withdraw()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
@@ -256,7 +256,7 @@ def main() -> None:
             return
         root.lift()
         confirmed = messagebox.askyesno(
-            "Restart Local Whisper?",
+            "Restart Bynum Dictate?",
             "Restart the dictation background service?",
             parent=root,
         )

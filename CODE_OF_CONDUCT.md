@@ -1,6 +1,6 @@
 # Code of Conduct
 
-Local Whisper follows the Contributor Covenant Code of Conduct, version 2.1.
+Bynum Dictate follows the Contributor Covenant Code of Conduct, version 2.1.
 
 ## Our Pledge
 

@@ -14,7 +14,7 @@ body:
     id: proposal
     attributes:
       label: Proposal
-      description: What should Local Whisper do?
+      description: What should Bynum Dictate do?
     validations:
       required: true
   - type: dropdown

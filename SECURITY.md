@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Local Whisper is pre-1.0. Security fixes target the latest commit on the default branch until formal releases begin.
+Bynum Dictate is pre-1.0. Security fixes target the latest commit on the default branch until formal releases begin.
 
 ## Reporting a Vulnerability
 
@@ -14,7 +14,7 @@ Do not include secrets, private recordings, transcripts, or microphone captures 
 
 - Dictation audio is recorded locally.
 - Transcription runs locally with `faster-whisper`.
-- Model downloads happen only when explicitly allowed, such as `local-whisper warmup --allow-download` or `LOCAL_WHISPER_LOCAL_ONLY=0`.
+- Model downloads happen only when explicitly allowed, such as `bynum-dictate warmup --allow-download` or `BYNUM_DICTATE_LOCAL_ONLY=0`.
 - No telemetry, analytics, cloud transcription, or transcript upload is implemented.
 
 ## High-Risk Areas

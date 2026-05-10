@@ -11,7 +11,7 @@ import wave
 
 from faster_whisper import WhisperModel
 
-from local_whisper_common import (
+from bynum_dictate_common import (
     DEFAULT_VOCABULARY,
     MODEL_CACHE,
     active_window_id,
@@ -20,13 +20,13 @@ from local_whisper_common import (
     paste_x11,
 )
 
-DEFAULT_MODEL = os.environ.get("LOCAL_WHISPER_MODEL", "distil-large-v3.5")
-DEFAULT_COMPUTE = os.environ.get("LOCAL_WHISPER_COMPUTE", "float16")
-DEFAULT_BEAM_SIZE = int(os.environ.get("LOCAL_WHISPER_BEAM_SIZE", "3"))
-DEFAULT_VAD = os.environ.get("LOCAL_WHISPER_VAD", "0").lower() not in {"0", "false", "no", "off"}
-DEFAULT_LOCAL_ONLY = os.environ.get("LOCAL_WHISPER_LOCAL_ONLY", "1") != "0"
-DEFAULT_NO_SPEECH_THRESHOLD = float(os.environ.get("LOCAL_WHISPER_NO_SPEECH_THRESHOLD", "0.45"))
-VOCABULARY_MAX_CHARS = int(os.environ.get("LOCAL_WHISPER_VOCABULARY_MAX_CHARS", "1800"))
+DEFAULT_MODEL = os.environ.get("BYNUM_DICTATE_MODEL", "distil-large-v3.5")
+DEFAULT_COMPUTE = os.environ.get("BYNUM_DICTATE_COMPUTE", "float16")
+DEFAULT_BEAM_SIZE = int(os.environ.get("BYNUM_DICTATE_BEAM_SIZE", "3"))
+DEFAULT_VAD = os.environ.get("BYNUM_DICTATE_VAD", "0").lower() not in {"0", "false", "no", "off"}
+DEFAULT_LOCAL_ONLY = os.environ.get("BYNUM_DICTATE_LOCAL_ONLY", "1") != "0"
+DEFAULT_NO_SPEECH_THRESHOLD = float(os.environ.get("BYNUM_DICTATE_NO_SPEECH_THRESHOLD", "0.45"))
+VOCABULARY_MAX_CHARS = int(os.environ.get("BYNUM_DICTATE_VOCABULARY_MAX_CHARS", "1800"))
 SAMPLE_RATE = 16000
 SAMPLE_WIDTH = 2
 CHANNELS = 1
@@ -35,7 +35,7 @@ CHUNK_BYTES = CHUNK_FRAMES * SAMPLE_WIDTH * CHANNELS
 
 
 def die(message: str, code: int = 1) -> None:
-    print(f"local-whisper: {message}", file=sys.stderr)
+    print(f"bynum-dictate: {message}", file=sys.stderr)
     raise SystemExit(code)
 
 
@@ -107,7 +107,7 @@ def record_audio(seconds: float, target: pathlib.Path) -> None:
         f"--channels={CHANNELS}",
         "--latency-msec=20",
         "--process-time-msec=20",
-        "--client-name=Local Whisper",
+        "--client-name=Bynum Dictate",
         "--stream-name=Dictation",
     ]
 
@@ -204,15 +204,15 @@ def cmd_file(args: argparse.Namespace) -> None:
 def cmd_record(args: argparse.Namespace) -> None:
     if args.language == "":
         args.language = None
-    with tempfile.TemporaryDirectory(prefix="local-whisper-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="bynum-dictate-") as tmp:
         audio_path = pathlib.Path(tmp) / "recording.wav"
         if args.notify:
-            notify("Local Whisper", f"Recording {args.seconds:g} seconds")
+            notify("Bynum Dictate", f"Recording {args.seconds:g} seconds")
         record_audio(args.seconds, audio_path)
         text = transcribe_audio(audio_path, args)
     handle_text(text, args)
     if args.notify:
-        notify("Local Whisper", "Transcript ready" if text else "No speech detected")
+        notify("Bynum Dictate", "Transcript ready" if text else "No speech detected")
 
 
 def cmd_warmup(args: argparse.Namespace) -> None:
@@ -227,7 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
     record = sub.add_parser("record", help="record the microphone and transcribe it")
     add_common_model_args(record)
     add_output_args(record, copy_default=True)
-    record.add_argument("--seconds", type=float, default=float(os.environ.get("LOCAL_WHISPER_SECONDS", "8")))
+    record.add_argument("--seconds", type=float, default=float(os.environ.get("BYNUM_DICTATE_SECONDS", "8")))
     record.set_defaults(func=cmd_record)
 
     file_cmd = sub.add_parser("file", help="transcribe an audio/video file")

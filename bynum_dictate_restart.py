@@ -9,13 +9,13 @@ import signal
 import subprocess
 import time
 
-from local_whisper_common import APP_DIR, STATE_DIR
+from bynum_dictate_common import APP_DIR, STATE_DIR
 
 TARGET_SCRIPTS = frozenset(
     {
-        "local_whisper_hotkey.py",
-        "local_whisper_overlay.py",
-        "local_whisper_tray.py",
+        "bynum_dictate_hotkey.py",
+        "bynum_dictate_overlay.py",
+        "bynum_dictate_tray.py",
     }
 )
 
@@ -95,10 +95,10 @@ def start_hotkey(command: list[str], state_dir: pathlib.Path = STATE_DIR) -> sub
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Restart the Local Whisper background service")
-    parser.add_argument("--app-dir", default=str(APP_DIR), help="Local Whisper app directory")
-    parser.add_argument("--state-dir", default=str(STATE_DIR), help="Local Whisper state/log directory")
-    parser.add_argument("--hotkey-command", default=str(pathlib.Path.home() / ".local" / "bin" / "local-whisper-hotkey"))
+    parser = argparse.ArgumentParser(description="Restart the Bynum Dictate background service")
+    parser.add_argument("--app-dir", default=str(APP_DIR), help="Bynum Dictate app directory")
+    parser.add_argument("--state-dir", default=str(STATE_DIR), help="Bynum Dictate state/log directory")
+    parser.add_argument("--hotkey-command", default=str(pathlib.Path.home() / ".local" / "bin" / "bynum-dictate-hotkey"))
     parser.add_argument("--no-start", action="store_true", help="stop existing processes without starting the hotkey daemon")
     parser.add_argument("--wait", type=float, default=0.6, help="seconds to wait before force-killing old processes")
     return parser
