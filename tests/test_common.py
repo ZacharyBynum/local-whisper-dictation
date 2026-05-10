@@ -2,6 +2,8 @@ import pathlib
 import subprocess
 
 import local_whisper_common as common
+import local_whisper_dictate
+import local_whisper_restart
 
 
 def test_load_vocabulary_deduplicates_comments_and_caps_length(tmp_path):
@@ -120,3 +122,38 @@ def test_project_docs_exist():
 
     for filename in ["README.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "pyproject.toml"]:
         assert (root / filename).exists()
+
+
+def test_dictate_wrapper_builds_record_paste_notify_args():
+    assert local_whisper_dictate.build_args(["--seconds", "2"]) == ["record", "--paste", "--notify", "--seconds", "2"]
+
+
+def test_restart_command_target_detection(tmp_path):
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    target = app_dir / "local_whisper_hotkey.py"
+    target.write_text("# hotkey", encoding="utf-8")
+
+    assert local_whisper_restart.command_targets_app(["python", str(target)], app_dir)
+    assert not local_whisper_restart.command_targets_app(["python", str(app_dir / "local_whisper_restart.py")], app_dir)
+    assert not local_whisper_restart.command_targets_app(["python", "/tmp/local_whisper_hotkey.py"], app_dir)
+
+
+def test_restart_target_pids_reads_proc_style_cmdline(tmp_path):
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    hotkey = app_dir / "local_whisper_hotkey.py"
+    hotkey.write_text("# hotkey", encoding="utf-8")
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    current = proc_root / str(local_whisper_restart.os.getpid())
+    current.mkdir()
+    (current / "cmdline").write_bytes(f"python\0{hotkey}\0".encode())
+    target = proc_root / "123"
+    target.mkdir()
+    (target / "cmdline").write_bytes(f"python\0{hotkey}\0".encode())
+    unrelated = proc_root / "456"
+    unrelated.mkdir()
+    (unrelated / "cmdline").write_bytes(b"python\0elsewhere.py\0")
+
+    assert local_whisper_restart.target_pids(app_dir, proc_root) == [123]

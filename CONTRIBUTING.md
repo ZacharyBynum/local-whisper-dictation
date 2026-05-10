@@ -30,10 +30,7 @@ sudo apt install pulseaudio-utils xclip wl-clipboard x11-xserver-utils python3-g
 Run these before opening a pull request:
 
 ```bash
-python -m py_compile local_whisper*.py
-python -m pytest
-ruff check .
-bash -n install.sh
+make check
 ```
 
 ## Design Principles

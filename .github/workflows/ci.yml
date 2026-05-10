@@ -29,13 +29,13 @@ jobs:
           python -m pip install -e ".[dev]"
 
       - name: Compile
-        run: python -m py_compile local_whisper*.py
+        run: make compile
 
       - name: Lint
-        run: ruff check .
+        run: make lint
 
       - name: Test
-        run: pytest -q
+        run: make test
 
       - name: Shell syntax
-        run: bash -n install.sh
+        run: make shell

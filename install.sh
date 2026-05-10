@@ -87,20 +87,16 @@ cat >"$BIN_DIR/local-whisper-restart" <<'EOF'
 set -euo pipefail
 
 APP_DIR="${LOCAL_WHISPER_APP_DIR:-$HOME/.local/share/local-whisper}"
-BIN_DIR="${LOCAL_WHISPER_BIN_DIR:-$HOME/.local/bin}"
-STATE_DIR="${LOCAL_WHISPER_STATE_DIR:-$HOME/.local/state/local-whisper}"
-mkdir -p "$STATE_DIR"
+PY="$APP_DIR/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  echo "local-whisper-restart: virtualenv python not found at $PY" >&2
+  echo "Run $APP_DIR/install.sh first." >&2
+  exit 1
+fi
+export LOCAL_WHISPER_APP_DIR="$APP_DIR"
+export PYTHONDONTWRITEBYTECODE=1
 
-(
-  sleep 0.2
-  pids="$(pgrep -f "$APP_DIR/local_whisper_(hotkey|overlay|tray)\\.py" || true)"
-  if [[ -n "$pids" ]]; then
-    kill $pids 2>/dev/null || true
-    sleep 0.6
-    kill -9 $pids 2>/dev/null || true
-  fi
-  setsid -f "$BIN_DIR/local-whisper-hotkey" >/dev/null 2>>"$STATE_DIR/hotkey.stderr"
-) >/dev/null 2>&1 &
+exec "$PY" "$APP_DIR/local_whisper_restart.py" "$@"
 EOF
 
 chmod +x "$BIN_DIR/local-whisper" "$BIN_DIR/local-whisper-hotkey" "$BIN_DIR/local-whisper-dictate" "$BIN_DIR/local-whisper-restart"

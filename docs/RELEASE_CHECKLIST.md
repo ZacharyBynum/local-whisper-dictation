@@ -5,10 +5,7 @@ Use this before tagging a release.
 ## Local Checks
 
 ```bash
-python -m py_compile local_whisper*.py
-ruff check .
-pytest -q
-bash -n install.sh
+make check
 ```
 
 ## Manual Desktop Checks

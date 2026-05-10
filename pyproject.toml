@@ -41,7 +41,9 @@ dev = [
 
 [project.scripts]
 local-whisper = "local_whisper:main"
+local-whisper-dictate = "local_whisper_dictate:main"
 local-whisper-hotkey = "local_whisper_hotkey:main"
+local-whisper-restart = "local_whisper_restart:main"
 
 [project.urls]
 Homepage = "https://github.com/ZacharyBynum/local-whisper-dictation"
@@ -51,8 +53,10 @@ Issues = "https://github.com/ZacharyBynum/local-whisper-dictation/issues"
 py-modules = [
   "local_whisper",
   "local_whisper_common",
+  "local_whisper_dictate",
   "local_whisper_hotkey",
   "local_whisper_overlay",
+  "local_whisper_restart",
   "local_whisper_text_render",
   "local_whisper_tray",
 ]

@@ -11,3 +11,5 @@
 - Added nonblocking clipboard ownership handling.
 - Added restart helper and overlay restart control for stuck states.
 - Added installer, autostart template, package metadata, tests, and CI scaffolding.
+- Added first-class `local-whisper-dictate` and `local-whisper-restart` package entry points.
+- Added Dependabot, pull request template, EditorConfig, and Makefile quality gates.
