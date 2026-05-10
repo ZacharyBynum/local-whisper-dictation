@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Local Whisper Dictation
+Comment=Start local hold-to-dictate hotkey
+Exec=sh -lc 'exec "$HOME/.local/bin/local-whisper-hotkey"'
+Terminal=false
+Hidden=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-Cinnamon-Autostart-enabled=true

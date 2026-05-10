@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-whisper-dictation"
+version = "0.1.0"
+description = "Local hold-to-dictate speech-to-text for Linux/X11 with NVIDIA GPU support."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Local Whisper contributors" }]
+keywords = ["whisper", "dictation", "speech-to-text", "linux", "nvidia", "x11"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: X11 Applications",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+  "faster-whisper>=1.1.1",
+  "Pillow>=10.0",
+  "python-xlib>=0.33",
+]
+
+[project.optional-dependencies]
+cuda = [
+  "nvidia-cublas-cu12>=12.0",
+  "nvidia-cudnn-cu12>=9.0",
+]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.4",
+]
+
+[project.scripts]
+local-whisper = "local_whisper:main"
+local-whisper-hotkey = "local_whisper_hotkey:main"
+
+[project.urls]
+Homepage = "https://github.com/ZacharyBynum/local-whisper-dictation"
+Issues = "https://github.com/ZacharyBynum/local-whisper-dictation/issues"
+
+[tool.setuptools]
+py-modules = [
+  "local_whisper",
+  "local_whisper_common",
+  "local_whisper_hotkey",
+  "local_whisper_overlay",
+  "local_whisper_text_render",
+  "local_whisper_tray",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"local_whisper_tray.py" = ["E402"]

@@ -1,0 +1,15 @@
+.venv/
+models/
+__pycache__/
+*.py[cod]
+*.log
+*.stderr
+*.wav
+*.tmp
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+uv.lock

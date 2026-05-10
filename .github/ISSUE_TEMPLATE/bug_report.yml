@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible Local Whisper problem.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the hotkey flow, app/window used, and whether the overlay/tray changed state.
+      placeholder: |
+        1. Start local-whisper-hotkey
+        2. Hold left Control + left Windows
+        3. Speak ...
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and desktop
+      placeholder: "Linux Mint Cinnamon, Ubuntu GNOME, etc."
+    validations:
+      required: true
+  - type: input
+    id: session
+    attributes:
+      label: Session type
+      placeholder: "X11 or Wayland"
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      placeholder: "NVIDIA RTX ..., driver ..."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove private transcripts before posting.
+      render: text
