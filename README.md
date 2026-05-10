@@ -1,5 +1,10 @@
 # Local Whisper Dictation
 
+[![CI](https://github.com/ZacharyBynum/local-whisper-dictation/actions/workflows/ci.yml/badge.svg)](https://github.com/ZacharyBynum/local-whisper-dictation/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![Linux X11](https://img.shields.io/badge/platform-Linux%20X11-success.svg)](docs/ARCHITECTURE.md)
+
 Local hold-to-dictate speech-to-text for Linux/X11 with NVIDIA GPU inference through `faster-whisper`.
 
 The default workflow is similar to Whispr: hold **left Control + left Windows**, speak, release, then the transcript is copied and pasted into the active window. Terminal windows use `Ctrl+Shift+V`; other X11 windows use `Ctrl+V`.
