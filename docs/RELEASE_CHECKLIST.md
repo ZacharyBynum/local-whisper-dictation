@@ -13,6 +13,7 @@ make check
 - Start `bynum-dictate-hotkey`.
 - Confirm tray icon appears.
 - Hold left Control + left Windows and verify the overlay appears.
+- Press Space while recording and confirm sticky mode stays active until Space or the hotkey chord is pressed again.
 - Speak a short sentence and confirm it pastes into a normal text field.
 - Speak into a terminal and confirm paste uses `Ctrl+Shift+V`.
 - Click/release without speech and confirm no hallucinated text is pasted.
@@ -22,6 +23,7 @@ make check
 
 - Confirm `BYNUM_DICTATE_LOCAL_ONLY=1` by default.
 - Confirm model download requires `--allow-download` or `BYNUM_DICTATE_LOCAL_ONLY=0`.
+- Confirm `./install.sh` does not install CUDA wheels unless `BYNUM_DICTATE_INSTALL_CUDA=1` is set.
 - Confirm no telemetry, cloud transcription, or transcript upload was added.
 
 ## Repository Checks

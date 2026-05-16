@@ -19,10 +19,16 @@ For NVIDIA GPU use, install CUDA Python wheels too:
 python -m pip install -e ".[cuda,dev]"
 ```
 
+The standalone installer keeps CUDA optional for end users:
+
+```bash
+BYNUM_DICTATE_INSTALL_CUDA=1 ./install.sh
+```
+
 System packages are still required for desktop integration:
 
 ```bash
-sudo apt install pulseaudio-utils xclip wl-clipboard x11-xserver-utils python3-gi gir1.2-gtk-3.0 python3-pil
+sudo apt install python3-tk pulseaudio-utils xclip wl-clipboard x11-xserver-utils python3-gi gir1.2-gtk-3.0 python3-pil libnotify-bin
 ```
 
 ## Quality Gates

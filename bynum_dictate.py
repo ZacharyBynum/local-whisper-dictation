@@ -20,9 +20,13 @@ from bynum_dictate_common import (
     paste_x11,
 )
 
-DEFAULT_MODEL = os.environ.get("BYNUM_DICTATE_MODEL", "distil-large-v3.5")
-DEFAULT_COMPUTE = os.environ.get("BYNUM_DICTATE_COMPUTE", "float16")
-DEFAULT_BEAM_SIZE = int(os.environ.get("BYNUM_DICTATE_BEAM_SIZE", "3"))
+DEFAULT_MODEL = os.environ.get("BYNUM_DICTATE_MODEL", "tiny.en")
+DEFAULT_DEVICE = os.environ.get("BYNUM_DICTATE_DEVICE", "cpu")
+DEFAULT_COMPUTE = os.environ.get("BYNUM_DICTATE_COMPUTE", "int8")
+DEFAULT_CPU_FALLBACK = os.environ.get("BYNUM_DICTATE_CPU_FALLBACK", "1").lower() not in {"0", "false", "no", "off"}
+DEFAULT_CPU_MODEL = os.environ.get("BYNUM_DICTATE_CPU_MODEL", "tiny.en")
+DEFAULT_CPU_COMPUTE = os.environ.get("BYNUM_DICTATE_CPU_COMPUTE", "int8")
+DEFAULT_BEAM_SIZE = int(os.environ.get("BYNUM_DICTATE_BEAM_SIZE", "1"))
 DEFAULT_VAD = os.environ.get("BYNUM_DICTATE_VAD", "0").lower() not in {"0", "false", "no", "off"}
 DEFAULT_LOCAL_ONLY = os.environ.get("BYNUM_DICTATE_LOCAL_ONLY", "1") != "0"
 DEFAULT_NO_SPEECH_THRESHOLD = float(os.environ.get("BYNUM_DICTATE_NO_SPEECH_THRESHOLD", "0.45"))
@@ -43,12 +47,32 @@ def log_stderr(message: str) -> None:
     print(f"[{message}]", file=sys.stderr)
 
 
-def load_model(args: argparse.Namespace) -> WhisperModel:
+def is_cuda_unavailable_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "cuda failed",
+            "cuda-capable device",
+            "cuda driver",
+            "cuda runtime",
+            "cublas",
+            "cudnn",
+            "no kernel image",
+        )
+    )
+
+
+def can_fallback_to_cpu(args: argparse.Namespace, exc: BaseException) -> bool:
+    return args.cpu_fallback and args.device != "cpu" and is_cuda_unavailable_error(exc)
+
+
+def load_model(args: argparse.Namespace, *, device: str | None = None, compute_type: str | None = None) -> WhisperModel:
     MODEL_CACHE.mkdir(parents=True, exist_ok=True)
     return WhisperModel(
         args.model,
-        device=args.device,
-        compute_type=args.compute_type,
+        device=device or args.device,
+        compute_type=compute_type or args.compute_type,
         download_root=str(MODEL_CACHE),
         local_files_only=args.local_only,
         cpu_threads=1,
@@ -56,22 +80,21 @@ def load_model(args: argparse.Namespace) -> WhisperModel:
     )
 
 
-def transcribe_audio(path: pathlib.Path, args: argparse.Namespace) -> str:
-    if not path.exists():
-        die(f"audio file not found: {path}")
+def load_model_with_fallback(args: argparse.Namespace) -> WhisperModel:
+    try:
+        return load_model(args)
+    except Exception as exc:
+        if not can_fallback_to_cpu(args, exc):
+            raise
+        log_stderr(f"CUDA unavailable; falling back to {args.cpu_model} on cpu/{args.cpu_compute_type}: {exc!r}")
+        args.model = args.cpu_model
+        args.device = "cpu"
+        args.compute_type = args.cpu_compute_type
+        return load_model(args)
 
-    model = load_model(args)
-    hotwords, vocabulary_count = load_vocabulary(
-        pathlib.Path(args.vocabulary),
-        max_chars=VOCABULARY_MAX_CHARS,
-        logger=log_stderr,
-    )
-    initial_prompt = None
-    if hotwords:
-        initial_prompt = f"Prefer these local custom vocabulary terms when they fit the audio: {hotwords}."
-        if args.verbose:
-            print(f"[custom vocabulary terms: {vocabulary_count}]", file=sys.stderr)
-    segments, info = model.transcribe(
+
+def transcribe_with_model(model: WhisperModel, path: pathlib.Path, args: argparse.Namespace, initial_prompt: str | None, hotwords: str | None):
+    return model.transcribe(
         str(path),
         beam_size=args.beam_size,
         language=args.language,
@@ -82,6 +105,34 @@ def transcribe_audio(path: pathlib.Path, args: argparse.Namespace) -> str:
         initial_prompt=initial_prompt,
         hotwords=hotwords,
     )
+
+
+def transcribe_audio(path: pathlib.Path, args: argparse.Namespace) -> str:
+    if not path.exists():
+        die(f"audio file not found: {path}")
+
+    model = load_model_with_fallback(args)
+    hotwords, vocabulary_count = load_vocabulary(
+        pathlib.Path(args.vocabulary),
+        max_chars=VOCABULARY_MAX_CHARS,
+        logger=log_stderr,
+    )
+    initial_prompt = None
+    if hotwords:
+        initial_prompt = f"Prefer these local custom vocabulary terms when they fit the audio: {hotwords}."
+        if args.verbose:
+            print(f"[custom vocabulary terms: {vocabulary_count}]", file=sys.stderr)
+    try:
+        segments, info = transcribe_with_model(model, path, args, initial_prompt, hotwords)
+    except Exception as exc:
+        if not can_fallback_to_cpu(args, exc):
+            raise
+        log_stderr(f"CUDA unavailable; falling back to {args.cpu_model} on cpu/{args.cpu_compute_type}: {exc!r}")
+        args.model = args.cpu_model
+        args.device = "cpu"
+        args.compute_type = args.cpu_compute_type
+        model = load_model(args)
+        segments, info = transcribe_with_model(model, path, args, initial_prompt, hotwords)
     text = " ".join(segment.text.strip() for segment in segments).strip()
 
     if args.verbose:
@@ -116,7 +167,8 @@ def record_audio(seconds: float, target: pathlib.Path) -> None:
     bytes_written = 0
     deadline = time.monotonic() + max(0.0, seconds)
     try:
-        assert proc.stdout is not None
+        if proc.stdout is None:
+            die("recording failed: parec stdout pipe was not opened")
         with wave.open(str(target), "wb") as wav:
             wav.setnchannels(CHANNELS)
             wav.setsampwidth(SAMPLE_WIDTH)
@@ -173,8 +225,12 @@ def handle_text(text: str, args: argparse.Namespace) -> None:
 
 def add_common_model_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"model alias or path (default: {DEFAULT_MODEL})")
-    parser.add_argument("--device", default="cuda", choices=["cuda", "cpu", "auto"], help="inference device")
+    parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["cuda", "cpu", "auto"], help=f"inference device (default: {DEFAULT_DEVICE})")
     parser.add_argument("--compute-type", default=DEFAULT_COMPUTE, help=f"CTranslate2 compute type (default: {DEFAULT_COMPUTE})")
+    parser.add_argument("--cpu-fallback", dest="cpu_fallback", action="store_true", default=DEFAULT_CPU_FALLBACK, help="fall back to CPU if CUDA is unavailable")
+    parser.add_argument("--no-cpu-fallback", dest="cpu_fallback", action="store_false", help="do not fall back to CPU if CUDA is unavailable")
+    parser.add_argument("--cpu-model", default=DEFAULT_CPU_MODEL, help=f"model to use for CPU fallback (default: {DEFAULT_CPU_MODEL})")
+    parser.add_argument("--cpu-compute-type", default=DEFAULT_CPU_COMPUTE, help=f"CTranslate2 compute type for CPU fallback (default: {DEFAULT_CPU_COMPUTE})")
     parser.add_argument("--language", default="en", help="language hint, or empty string to auto-detect")
     parser.add_argument("--beam-size", type=int, default=DEFAULT_BEAM_SIZE, help="beam size; higher is more accurate but slower")
     parser.add_argument("--vad", dest="no_vad", action="store_false", help="enable voice activity filtering")
@@ -216,12 +272,12 @@ def cmd_record(args: argparse.Namespace) -> None:
 
 
 def cmd_warmup(args: argparse.Namespace) -> None:
-    load_model(args)
-    print(f"Model ready: {args.model}")
+    load_model_with_fallback(args)
+    print(f"Model ready: {args.model} on {args.device}/{args.compute_type}")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Local CUDA Whisper transcription helper")
+    parser = argparse.ArgumentParser(description="Local speech-to-text transcription helper")
     sub = parser.add_subparsers(dest="command")
 
     record = sub.add_parser("record", help="record the microphone and transcribe it")

@@ -2,6 +2,7 @@
 import base64
 import contextlib
 import json
+import math
 import os
 import pathlib
 import queue
@@ -16,29 +17,31 @@ from tkinter import messagebox
 from Xlib import display
 from Xlib.ext import shape
 
-WIDTH = 164
+WIDTH = 196
 HEIGHT = 48
 BAR_COUNT = 5
 RADIUS = 24
-BG = "#0f1115"
+BG = "#111111"
+TRANSPARENT_BG = "#010203"
 FALLBACK_FONT_FAMILY = "helvetica"
-BAR_PATTERN = (0.64, 0.94, 1.0, 0.80, 0.56)
-BAR_WIDTH = 7
-BAR_SPACING = 10
-BAR_X = 94
-BAR_FILL = "#f7f8fa"
+BAR_PATTERN = (0.34, 0.72, 1.0, 0.76, 0.42)
+BAR_WIDTH = 8
+BAR_SPACING = 12
+BAR_X = 122
+BAR_FILLS = ("#4285f4", "#ea4335", "#fbbc04", "#34a853", "#4285f4")
 APP_DIR = pathlib.Path(os.environ.get("BYNUM_DICTATE_APP_DIR", str(pathlib.Path(__file__).resolve().parent))).expanduser()
 TEXT_RENDERER = APP_DIR / "bynum_dictate_text_render.py"
 TEXT_RENDER_PYTHON = os.environ.get("BYNUM_DICTATE_TEXT_RENDER_PYTHON", "/usr/bin/python3")
 RESTART_COMMAND = pathlib.Path(os.environ.get("BYNUM_DICTATE_RESTART_COMMAND", "~/.local/bin/bynum-dictate-restart")).expanduser()
 STATUS_IMAGE_WIDTH = 84
 STATUS_IMAGE_HEIGHT = 24
-SHOWN_ALPHA = 0.92
+SHOWN_ALPHA = 1.0
 ANIMATION_MS = int(os.environ.get("BYNUM_DICTATE_OVERLAY_ANIMATION_MS", "75"))
 ANIMATION_FRAME_MS = 16
 ANIMATION_OFFSET = int(os.environ.get("BYNUM_DICTATE_OVERLAY_ANIMATION_OFFSET", "10"))
 RENDER_INTERVAL_MS = int(os.environ.get("BYNUM_DICTATE_OVERLAY_RENDER_MS", "8"))
 IDLE_INTERVAL_MS = int(os.environ.get("BYNUM_DICTATE_OVERLAY_IDLE_MS", "16"))
+LEVEL_STARTUP_DAMPEN_MS = int(os.environ.get("BYNUM_DICTATE_LEVEL_STARTUP_DAMPEN_MS", "240"))
 STATUS_LABELS = (
     "Listening",
     "Busy",
@@ -55,7 +58,13 @@ STATUS_LABELS = (
 )
 LEVEL_FLOOR = 0.045
 LEVEL_CEILING = 0.92
-DEFAULT_TEXT_COLOR = "#f7f8fa"
+DEFAULT_TEXT_COLOR = "#f8fafc"
+ERROR_TEXT_COLOR = "#ff8b8b"
+STICKY_FILL = "#f8fafc"
+STICKY_BG = "#1b1b1b"
+STICKY_OUTLINE = "#4b5563"
+STICKY_PULSE = "#6b7280"
+STICKY_DIVIDER = "#2a2f36"
 RESTART_STATUSES = {"Busy", "Stopping", "Thinking", "Pasting", "Clipboard error", "Error"}
 
 
@@ -169,6 +178,8 @@ def main() -> None:
     current_bars = [0.08] * BAR_COUNT
     status_text = "Listening"
     status_color = DEFAULT_TEXT_COLOR
+    sticky_active = False
+    listening_started = 0.0
 
     def read_stdin() -> None:
         for line in sys.stdin:
@@ -186,7 +197,9 @@ def main() -> None:
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     root.attributes("-alpha", SHOWN_ALPHA)
-    root.configure(bg=BG)
+    root.configure(bg=TRANSPARENT_BG)
+    with contextlib.suppress(tk.TclError):
+        root.attributes("-transparentcolor", TRANSPARENT_BG)
     with contextlib.suppress(tk.TclError):
         root.wm_attributes("-type", "notification")
 
@@ -203,9 +216,11 @@ def main() -> None:
     for label in STATUS_LABELS:
         status_photo_for(label)
 
-    canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg=BG, highlightthickness=0, bd=0)
+    canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg=TRANSPARENT_BG, highlightthickness=0, bd=0)
     canvas.pack(fill="both", expand=True)
-    canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill=BG, outline="")
+    canvas.create_rectangle(RADIUS, 0, WIDTH - RADIUS, HEIGHT, fill=BG, outline="")
+    canvas.create_oval(0, 0, RADIUS * 2, HEIGHT, fill=BG, outline="")
+    canvas.create_oval(WIDTH - RADIUS * 2, 0, WIDTH, HEIGHT, fill=BG, outline="")
     status_photo = status_photo_for(status_text, status_color)
     status_image = canvas.create_image(20, HEIGHT // 2, anchor="w", image=status_photo, state="normal" if status_photo else "hidden")
     fallback_status = canvas.create_text(
@@ -220,35 +235,52 @@ def main() -> None:
     rendered_status_text = status_text
     rendered_status_color = status_color
 
-    bar_items = []
+    bar_items: list[dict[str, int]] = []
     center_y = HEIGHT // 2
+    sticky_items = []
     restart_items = []
 
-    def create_bar(x: int, height: int) -> int:
+    def create_pill(x1: int, y1: int, x2: int, y2: int, fill: str, state: str = "normal", tags=()) -> tuple[int, int, int]:
+        radius = min((x2 - x1) / 2, (y2 - y1) / 2)
+        center = canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline="", state=state, tags=tags)
+        start = canvas.create_oval(x1, y1, x1 + radius * 2, y2, fill=fill, outline="", state=state, tags=tags)
+        end = canvas.create_oval(x2 - radius * 2, y1, x2, y2, fill=fill, outline="", state=state, tags=tags)
+        return center, start, end
+
+    def set_pill(parts: tuple[int, int, int], x1: float, y1: float, x2: float, y2: float, fill: str, state: str = "normal") -> None:
+        radius = min((x2 - x1) / 2, (y2 - y1) / 2)
+        center, start, end = parts
+        canvas.coords(center, x1 + radius, y1, x2 - radius, y2)
+        canvas.coords(start, x1, y1, x1 + radius * 2, y2)
+        canvas.coords(end, x2 - radius * 2, y1, x2, y2)
+        for item in parts:
+            canvas.itemconfig(item, fill=fill, outline="", state=state)
+
+    def create_bar(x: int, height: int, color: str) -> dict[str, int]:
         y1 = center_y - height // 2
         y2 = center_y + height // 2
-        return canvas.create_line(
-            x,
-            y1,
-            x,
-            y2,
-            fill=BAR_FILL,
-            width=BAR_WIDTH,
-            capstyle=tk.ROUND,
-        )
+        parts = create_pill(x - BAR_WIDTH / 2, y1, x + BAR_WIDTH / 2, y2, color)
+        return {"center": parts[0], "start": parts[1], "end": parts[2], "x": x}
+
+    sticky_items.append(canvas.create_oval(86, 16, 106, 36, fill=STICKY_BG, outline=STICKY_OUTLINE, width=1, state="hidden"))
+    sticky_items.append(canvas.create_oval(90, 20, 102, 32, outline=STICKY_PULSE, width=1, state="hidden"))
+    sticky_items.append(canvas.create_arc(92, 19, 100, 29, start=0, extent=180, style=tk.ARC, outline=STICKY_FILL, width=1, state="hidden"))
+    sticky_items.append(canvas.create_rectangle(91, 25, 101, 31, fill=STICKY_FILL, outline="", state="hidden"))
+    sticky_items.append(canvas.create_rectangle(95, 28, 97, 31, fill=STICKY_BG, outline="", state="hidden"))
+    sticky_items.append(canvas.create_line(115, 17, 115, 31, fill=STICKY_DIVIDER, width=1, state="hidden"))
 
     for index in range(BAR_COUNT):
-        bar_items.append(create_bar(BAR_X + index * BAR_SPACING, 8))
+        bar_items.append(create_bar(BAR_X + index * BAR_SPACING, 8, BAR_FILLS[index]))
 
-    restart_hit = canvas.create_oval(144, 14, 162, 34, fill=BG, outline="", state="hidden", tags=("restart",))
+    restart_hit = canvas.create_oval(176, 14, 194, 34, fill=BG, outline="", state="hidden", tags=("restart",))
     restart_items.append(restart_hit)
     restart_items.append(
-        canvas.create_oval(145, 15, 161, 33, fill="#151820", outline="#303640", width=1, state="hidden", tags=("restart",))
+        canvas.create_oval(177, 15, 193, 33, fill="#151820", outline="#303640", width=1, state="hidden", tags=("restart",))
     )
     restart_items.append(
-        canvas.create_arc(149, 19, 157, 27, start=35, extent=285, style=tk.ARC, outline="#d8dde5", width=2, state="hidden", tags=("restart",))
+        canvas.create_arc(181, 19, 189, 27, start=35, extent=285, style=tk.ARC, outline="#d8dde5", width=2, state="hidden", tags=("restart",))
     )
-    restart_items.append(canvas.create_line(156, 18, 158, 22, 154, 21, fill="#d8dde5", width=1, state="hidden", tags=("restart",)))
+    restart_items.append(canvas.create_line(188, 18, 190, 22, 186, 21, fill="#d8dde5", width=1, state="hidden", tags=("restart",)))
 
     def restart_with_confirmation(_event=None) -> None:
         if not RESTART_COMMAND.exists():
@@ -393,20 +425,36 @@ def main() -> None:
                 canvas.itemconfig(fallback_status, text=status_text, fill=status_color, state="normal")
             rendered_status_text = status_text
             rendered_status_color = status_color
-        for bar, level in zip(bar_items, current_bars, strict=False):
+        for index, (bar, level) in enumerate(zip(bar_items, current_bars, strict=False)):
             shaped = max(LEVEL_FLOOR, min(LEVEL_CEILING, level))
-            height = max(BAR_WIDTH, int(34 * shaped))
-            x = canvas.coords(bar)[0]
+            height = max(BAR_WIDTH, int(36 * shaped))
+            x = bar["x"]
             y1 = center_y - height // 2
             y2 = center_y + height // 2
-            canvas.coords(bar, x, y1, x, y2)
-            canvas.itemconfig(bar, fill=BAR_FILL)
+            set_pill((bar["center"], bar["start"], bar["end"]), x - BAR_WIDTH / 2, y1, x + BAR_WIDTH / 2, y2, BAR_FILLS[index])
+        if sticky_active:
+            pulse = (math.sin(time.monotonic() * 5.0) + 1.0) / 2.0
+            pulse_radius = 5.4 + pulse * 1.4
+            center_x = 96
+            center_y_icon = HEIGHT // 2
+            canvas.coords(
+                sticky_items[1],
+                center_x - pulse_radius,
+                center_y_icon - pulse_radius,
+                center_x + pulse_radius,
+                center_y_icon + pulse_radius,
+            )
+            for item in sticky_items:
+                canvas.itemconfig(item, state="normal")
+        else:
+            for item in sticky_items:
+                canvas.itemconfig(item, state="hidden")
         restart_state = "normal" if status_text in RESTART_STATUSES else "hidden"
         for item in restart_items:
             canvas.itemconfig(item, state=restart_state)
 
     def process() -> None:
-        nonlocal hide_after_id, target_bars, current_bars, status_text, status_color
+        nonlocal hide_after_id, target_bars, current_bars, status_text, status_color, sticky_active, listening_started
         last_level = None
         try:
             while True:
@@ -417,20 +465,27 @@ def main() -> None:
                     return
                 if kind == "show":
                     status_text = display_status(event.get("status", "Listening"))
-                    status_color = str(event.get("color", DEFAULT_TEXT_COLOR))
+                    status_color = ERROR_TEXT_COLOR if status_text == "Error" else DEFAULT_TEXT_COLOR
                     target_bars = [LEVEL_FLOOR] * BAR_COUNT
                     current_bars = [LEVEL_FLOOR] * BAR_COUNT
+                    if status_text == "Listening":
+                        listening_started = time.monotonic()
                     show()
                     render()
                 elif kind == "status":
                     status_text = display_status(event.get("status", "Working"))
-                    status_color = str(event.get("color", DEFAULT_TEXT_COLOR))
+                    status_color = DEFAULT_TEXT_COLOR
                     if status_text in {"No speech", "Too short", "Clipboard error", "Error"}:
-                        status_color = "#ff8b8b"
+                        status_color = ERROR_TEXT_COLOR
                     show()
                     render()
                 elif kind == "level":
                     last_level = event
+                elif kind == "sticky":
+                    sticky_active = bool(event.get("active"))
+                    if sticky_active:
+                        show()
+                    render()
                 elif kind == "hide":
                     delay = int(event.get("delay_ms", 0))
                     if delay:
@@ -449,9 +504,17 @@ def main() -> None:
                 next_bars = [max(0.0, min(LEVEL_CEILING, float(value))) for value in raw_bars[:BAR_COUNT]]
                 while len(next_bars) < BAR_COUNT:
                     next_bars.append(level)
-                target_bars = [max(LEVEL_FLOOR, value) for value in next_bars]
+                target_bars = [
+                    max(LEVEL_FLOOR, min(LEVEL_CEILING, LEVEL_FLOOR + (value - LEVEL_FLOOR) * factor))
+                    for value, factor in zip(next_bars, BAR_PATTERN, strict=False)
+                ]
             else:
                 target_bars = [max(LEVEL_FLOOR, min(LEVEL_CEILING, level * factor)) for factor in BAR_PATTERN]
+            if LEVEL_STARTUP_DAMPEN_MS > 0 and status_text == "Listening" and listening_started:
+                elapsed_ms = (time.monotonic() - listening_started) * 1000
+                if elapsed_ms < LEVEL_STARTUP_DAMPEN_MS:
+                    scale = max(0.0, min(1.0, elapsed_ms / LEVEL_STARTUP_DAMPEN_MS))
+                    target_bars = [LEVEL_FLOOR + (value - LEVEL_FLOOR) * scale for value in target_bars]
             show(lift=False)
 
         if visible:

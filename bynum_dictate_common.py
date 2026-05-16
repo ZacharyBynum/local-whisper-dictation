@@ -114,7 +114,12 @@ def copy_to_clipboard(text: str, logger: Logger | None = None) -> bool:
                 text=True,
                 start_new_session=True,
             )
-            assert proc.stdin is not None
+            if proc.stdin is None:
+                if logger is not None:
+                    logger(f"clipboard command stdin unavailable ({command[0]})")
+                if proc.poll() is None:
+                    proc.kill()
+                continue
             proc.stdin.write(text)
             proc.stdin.close()
         except Exception as exc:
