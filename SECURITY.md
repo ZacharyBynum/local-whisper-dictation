@@ -6,7 +6,7 @@ Bynum Dictate is pre-1.0. Security fixes target the latest commit on the default
 
 ## Reporting a Vulnerability
 
-Please open a private security advisory on GitHub when the repository is published, or email the maintainer listed on the repository profile.
+Please open a private security advisory on GitHub, or email the maintainer listed on the repository profile.
 
 Do not include secrets, private recordings, transcripts, or microphone captures in public issues.
 

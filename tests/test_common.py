@@ -286,3 +286,28 @@ def test_one_shot_dictate_model_load_falls_back_to_cpu(monkeypatch):
     assert calls == [("cuda", "float16"), ("cpu", "int8")]
     assert args.model == "base.en"
     assert args.device == "cpu"
+
+
+def test_warmup_uses_cpu_fallback(monkeypatch, capsys):
+    class FakeModel:
+        def __init__(self, _name, *, device, compute_type, **_kwargs):
+            calls.append((device, compute_type))
+            if device == "cuda":
+                raise RuntimeError("CUDA failed with error no CUDA-capable device is detected")
+
+    calls = []
+    args = SimpleNamespace(
+        model="tiny",
+        device="cuda",
+        compute_type="float16",
+        cpu_fallback=True,
+        cpu_model="base.en",
+        cpu_compute_type="int8",
+        local_only=True,
+    )
+    monkeypatch.setattr(bynum_dictate, "WhisperModel", FakeModel)
+
+    bynum_dictate.cmd_warmup(args)
+
+    assert calls == [("cuda", "float16"), ("cpu", "int8")]
+    assert capsys.readouterr().out.strip() == "Model ready: base.en on cpu/int8"

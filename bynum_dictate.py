@@ -167,7 +167,8 @@ def record_audio(seconds: float, target: pathlib.Path) -> None:
     bytes_written = 0
     deadline = time.monotonic() + max(0.0, seconds)
     try:
-        assert proc.stdout is not None
+        if proc.stdout is None:
+            die("recording failed: parec stdout pipe was not opened")
         with wave.open(str(target), "wb") as wav:
             wav.setnchannels(CHANNELS)
             wav.setsampwidth(SAMPLE_WIDTH)
@@ -271,12 +272,12 @@ def cmd_record(args: argparse.Namespace) -> None:
 
 
 def cmd_warmup(args: argparse.Namespace) -> None:
-    load_model(args)
-    print(f"Model ready: {args.model}")
+    load_model_with_fallback(args)
+    print(f"Model ready: {args.model} on {args.device}/{args.compute_type}")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Local CUDA Whisper transcription helper")
+    parser = argparse.ArgumentParser(description="Local speech-to-text transcription helper")
     sub = parser.add_subparsers(dest="command")
 
     record = sub.add_parser("record", help="record the microphone and transcribe it")

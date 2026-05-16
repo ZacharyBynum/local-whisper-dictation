@@ -13,6 +13,7 @@ mkdir -p "$APP_DIR" "$BIN_DIR" "$AUTOSTART_DIR" "$HOME/.config/bynum-dictate"
 if [[ "$SRC_DIR" != "$APP_DIR" ]]; then
   install -m 644 "$SRC_DIR"/bynum_dictate*.py "$APP_DIR"/
   install -m 644 "$SRC_DIR"/requirements.txt "$APP_DIR"/
+  install -m 644 "$SRC_DIR"/requirements-cuda.txt "$APP_DIR"/
   install -m 644 "$SRC_DIR"/README.md "$APP_DIR"/
   install -m 644 "$SRC_DIR"/bynum-dictate-hotkey.desktop.in "$APP_DIR"/
   install -m 755 "$SRC_DIR"/install.sh "$APP_DIR"/
@@ -25,6 +26,9 @@ fi
 "$APP_DIR/.venv/bin/python" -m ensurepip --upgrade >/dev/null
 "$APP_DIR/.venv/bin/python" -m pip install --upgrade pip wheel
 "$APP_DIR/.venv/bin/python" -m pip install -r "$APP_DIR/requirements.txt"
+if [[ "${BYNUM_DICTATE_INSTALL_CUDA:-0}" == "1" ]]; then
+  "$APP_DIR/.venv/bin/python" -m pip install -r "$APP_DIR/requirements-cuda.txt"
+fi
 
 cat >"$BIN_DIR/bynum-dictate" <<'EOF'
 #!/usr/bin/env bash

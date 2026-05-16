@@ -1,0 +1,12 @@
+include CHANGELOG.md
+include CODE_OF_CONDUCT.md
+include CONTRIBUTING.md
+include LICENSE
+include Makefile
+include README.md
+include SECURITY.md
+include bynum-dictate-hotkey.desktop.in
+include install.sh
+include requirements.txt
+include requirements-cuda.txt
+recursive-include docs *.md

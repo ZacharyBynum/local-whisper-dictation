@@ -31,7 +31,7 @@ from bynum_dictate_common import (
 )
 
 LOG_PATH = STATE_DIR / "hotkey.log"
-LOCK_PATH = pathlib.Path(f"/tmp/bynum-dictate-hotkey-{os.getuid()}.lock")
+LOCK_PATH = pathlib.Path(os.environ.get("BYNUM_DICTATE_LOCK_PATH", str(STATE_DIR / "hotkey.lock"))).expanduser()
 VOCABULARY_PATH = DEFAULT_VOCABULARY
 VOCABULARY_MAX_CHARS = int(os.environ.get("BYNUM_DICTATE_VOCABULARY_MAX_CHARS", "240"))
 
@@ -103,7 +103,7 @@ def notify_ready() -> None:
                 "--urgency=normal",
                 "--expire-time=7000",
                 "Bynum Dictate is ready",
-                "Local Whisper dictation is configured and running. Hold left Ctrl + left Windows to dictate.",
+                "Local dictation is configured and running. Hold left Ctrl + left Windows to dictate.",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -131,6 +131,7 @@ def is_cuda_unavailable_error(exc: BaseException) -> bool:
 
 
 def single_instance() -> object:
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
     lock = LOCK_PATH.open("w", encoding="utf-8")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -369,9 +370,9 @@ class AudioRecorder:
         )
 
     def _read_loop(self) -> None:
-        assert self.proc is not None
-        assert self.proc.stdout is not None
-        assert self.wav is not None
+        if self.proc is None or self.proc.stdout is None or self.wav is None:
+            log("audio read loop stopped: recorder was not initialized")
+            return
 
         try:
             while not self.stop_event.is_set():
@@ -787,7 +788,7 @@ class HoldToDictate:
                 return
 
             self.tray.status("Transcribing")
-            self.overlay.status("Transcribing", "local GPU")
+            self.overlay.status("Transcribing", "local model")
             with self.lock:
                 self.phase = "transcribing"
             started = time.monotonic()
