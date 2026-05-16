@@ -22,6 +22,7 @@ HEIGHT = 48
 BAR_COUNT = 5
 RADIUS = 24
 BG = "#111111"
+TRANSPARENT_BG = "#010203"
 FALLBACK_FONT_FAMILY = "helvetica"
 BAR_PATTERN = (0.34, 0.72, 1.0, 0.76, 0.42)
 BAR_WIDTH = 6
@@ -196,7 +197,9 @@ def main() -> None:
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     root.attributes("-alpha", SHOWN_ALPHA)
-    root.configure(bg=BG)
+    root.configure(bg=TRANSPARENT_BG)
+    with contextlib.suppress(tk.TclError):
+        root.attributes("-transparentcolor", TRANSPARENT_BG)
     with contextlib.suppress(tk.TclError):
         root.wm_attributes("-type", "notification")
 
@@ -213,9 +216,11 @@ def main() -> None:
     for label in STATUS_LABELS:
         status_photo_for(label)
 
-    canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg=BG, highlightthickness=0, bd=0)
+    canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg=TRANSPARENT_BG, highlightthickness=0, bd=0)
     canvas.pack(fill="both", expand=True)
-    canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill=BG, outline="")
+    canvas.create_rectangle(RADIUS, 0, WIDTH - RADIUS, HEIGHT, fill=BG, outline="")
+    canvas.create_oval(0, 0, RADIUS * 2, HEIGHT, fill=BG, outline="")
+    canvas.create_oval(WIDTH - RADIUS * 2, 0, WIDTH, HEIGHT, fill=BG, outline="")
     status_photo = status_photo_for(status_text, status_color)
     status_image = canvas.create_image(20, HEIGHT // 2, anchor="w", image=status_photo, state="normal" if status_photo else "hidden")
     fallback_status = canvas.create_text(
@@ -230,23 +235,32 @@ def main() -> None:
     rendered_status_text = status_text
     rendered_status_color = status_color
 
-    bar_items = []
+    bar_items: list[dict[str, int]] = []
     center_y = HEIGHT // 2
     sticky_items = []
     restart_items = []
 
-    def create_bar(x: int, height: int, color: str) -> int:
+    def create_pill(x1: int, y1: int, x2: int, y2: int, fill: str, state: str = "normal", tags=()) -> tuple[int, int, int]:
+        radius = min((x2 - x1) / 2, (y2 - y1) / 2)
+        center = canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline="", state=state, tags=tags)
+        start = canvas.create_oval(x1, y1, x1 + radius * 2, y2, fill=fill, outline="", state=state, tags=tags)
+        end = canvas.create_oval(x2 - radius * 2, y1, x2, y2, fill=fill, outline="", state=state, tags=tags)
+        return center, start, end
+
+    def set_pill(parts: tuple[int, int, int], x1: float, y1: float, x2: float, y2: float, fill: str, state: str = "normal") -> None:
+        radius = min((x2 - x1) / 2, (y2 - y1) / 2)
+        center, start, end = parts
+        canvas.coords(center, x1 + radius, y1, x2 - radius, y2)
+        canvas.coords(start, x1, y1, x1 + radius * 2, y2)
+        canvas.coords(end, x2 - radius * 2, y1, x2, y2)
+        for item in parts:
+            canvas.itemconfig(item, fill=fill, outline="", state=state)
+
+    def create_bar(x: int, height: int, color: str) -> dict[str, int]:
         y1 = center_y - height // 2
         y2 = center_y + height // 2
-        return canvas.create_line(
-            x,
-            y1,
-            x,
-            y2,
-            fill=color,
-            width=BAR_WIDTH,
-            capstyle=tk.ROUND,
-        )
+        parts = create_pill(x - BAR_WIDTH / 2, y1, x + BAR_WIDTH / 2, y2, color)
+        return {"center": parts[0], "start": parts[1], "end": parts[2], "x": x}
 
     sticky_items.append(canvas.create_oval(86, 16, 106, 36, fill=STICKY_BG, outline=STICKY_OUTLINE, width=1, state="hidden"))
     sticky_items.append(canvas.create_oval(90, 20, 102, 32, outline=STICKY_PULSE, width=1, state="hidden"))
@@ -414,11 +428,10 @@ def main() -> None:
         for index, (bar, level) in enumerate(zip(bar_items, current_bars, strict=False)):
             shaped = max(LEVEL_FLOOR, min(LEVEL_CEILING, level))
             height = max(BAR_WIDTH, int(34 * shaped))
-            x = canvas.coords(bar)[0]
+            x = bar["x"]
             y1 = center_y - height // 2
             y2 = center_y + height // 2
-            canvas.coords(bar, x, y1, x, y2)
-            canvas.itemconfig(bar, fill=BAR_FILLS[index], width=BAR_WIDTH, capstyle=tk.ROUND)
+            set_pill((bar["center"], bar["start"], bar["end"]), x - BAR_WIDTH / 2, y1, x + BAR_WIDTH / 2, y2, BAR_FILLS[index])
         if sticky_active:
             pulse = (math.sin(time.monotonic() * 5.0) + 1.0) / 2.0
             pulse_radius = 5.4 + pulse * 1.4
