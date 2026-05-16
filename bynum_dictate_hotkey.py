@@ -33,13 +33,16 @@ from bynum_dictate_common import (
 LOG_PATH = STATE_DIR / "hotkey.log"
 LOCK_PATH = pathlib.Path(f"/tmp/bynum-dictate-hotkey-{os.getuid()}.lock")
 VOCABULARY_PATH = DEFAULT_VOCABULARY
-VOCABULARY_MAX_CHARS = int(os.environ.get("BYNUM_DICTATE_VOCABULARY_MAX_CHARS", "1800"))
+VOCABULARY_MAX_CHARS = int(os.environ.get("BYNUM_DICTATE_VOCABULARY_MAX_CHARS", "240"))
 
-MODEL_NAME = os.environ.get("BYNUM_DICTATE_MODEL", "distil-large-v3.5")
-COMPUTE_TYPE = os.environ.get("BYNUM_DICTATE_COMPUTE", "float16")
+MODEL_NAME = os.environ.get("BYNUM_DICTATE_MODEL", "tiny.en")
+COMPUTE_TYPE = os.environ.get("BYNUM_DICTATE_COMPUTE", "int8")
+CPU_FALLBACK = os.environ.get("BYNUM_DICTATE_CPU_FALLBACK", "1").lower() not in {"0", "false", "no", "off"}
+CPU_FALLBACK_MODEL = os.environ.get("BYNUM_DICTATE_CPU_MODEL", "tiny.en")
+CPU_FALLBACK_COMPUTE = os.environ.get("BYNUM_DICTATE_CPU_COMPUTE", "int8")
 LANGUAGE = os.environ.get("BYNUM_DICTATE_LANGUAGE", "en") or None
-DEVICE = os.environ.get("BYNUM_DICTATE_DEVICE", "cuda")
-BEAM_SIZE = int(os.environ.get("BYNUM_DICTATE_BEAM_SIZE", "3"))
+DEVICE = os.environ.get("BYNUM_DICTATE_DEVICE", "cpu")
+BEAM_SIZE = int(os.environ.get("BYNUM_DICTATE_BEAM_SIZE", "1"))
 VAD_FILTER = os.environ.get("BYNUM_DICTATE_VAD", "0").lower() not in {"0", "false", "no", "off"}
 NO_SPEECH_THRESHOLD = float(os.environ.get("BYNUM_DICTATE_NO_SPEECH_THRESHOLD", "0.45"))
 VOICE_THRESHOLD = float(os.environ.get("BYNUM_DICTATE_VOICE_THRESHOLD", "0.012"))
@@ -67,6 +70,7 @@ TRAY_PYTHON = os.environ.get("BYNUM_DICTATE_TRAY_PYTHON", "/usr/bin/python3")
 BUSY_NOTICE_MS = int(os.environ.get("BYNUM_DICTATE_BUSY_NOTICE_MS", "650"))
 BUSY_STUCK_SECONDS = float(os.environ.get("BYNUM_DICTATE_BUSY_STUCK_SECONDS", "2.0"))
 BUSY_STUCK_NOTICE_MS = int(os.environ.get("BYNUM_DICTATE_BUSY_STUCK_NOTICE_MS", "8000"))
+READY_NOTIFICATION = os.environ.get("BYNUM_DICTATE_READY_NOTIFICATION", "1") != "0"
 SAMPLE_RATE = 16000
 TONE_RATE = 44100
 SAMPLE_WIDTH = 2
@@ -80,6 +84,50 @@ def log(message: str) -> None:
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     with LOG_PATH.open("a", encoding="utf-8") as handle:
         handle.write(f"{timestamp} {message}\n")
+
+
+def notify_ready() -> None:
+    if not READY_NOTIFICATION:
+        return
+    notifier = shutil.which("notify-send")
+    if not notifier:
+        log("ready notification skipped: notify-send not found")
+        return
+
+    try:
+        subprocess.Popen(
+            [
+                notifier,
+                "--app-name=Bynum Dictate",
+                "--icon=audio-input-microphone",
+                "--urgency=normal",
+                "--expire-time=7000",
+                "Bynum Dictate is ready",
+                "Local Whisper dictation is configured and running. Hold left Ctrl + left Windows to dictate.",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        log("ready notification sent")
+    except Exception as exc:
+        log(f"ready notification failed: {exc!r}")
+
+
+def is_cuda_unavailable_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "cuda failed",
+            "cuda-capable device",
+            "cuda driver",
+            "cuda runtime",
+            "cublas",
+            "cudnn",
+            "no kernel image",
+        )
+    )
 
 
 def single_instance() -> object:
@@ -129,6 +177,9 @@ class Overlay:
         if bars is not None:
             event["bars"] = [max(0.0, min(1.0, bar)) for bar in bars[:VISUAL_BAR_COUNT]]
         self._send(event)
+
+    def sticky(self, active: bool) -> None:
+        self._send({"type": "sticky", "active": bool(active)})
 
     def hide(self, delay_ms: int = 0) -> None:
         self._send({"type": "hide", "delay_ms": delay_ms})
@@ -467,9 +518,49 @@ class ModelManager:
         self.model: WhisperModel | None = None
         self.error: Exception | None = None
         self.loading = False
+        self.model_name = MODEL_NAME
+        self.device = DEVICE
+        self.compute_type = COMPUTE_TYPE
         self.condition = threading.Condition()
         if os.environ.get("BYNUM_DICTATE_PRELOAD", "1") != "0":
             threading.Thread(target=self.get, name="bynum-dictate-model-loader", daemon=True).start()
+
+    def can_fallback_to_cpu(self, exc: BaseException) -> bool:
+        return CPU_FALLBACK and self.device != "cpu" and is_cuda_unavailable_error(exc)
+
+    def _load_model(self, model_name: str, device: str, compute_type: str) -> WhisperModel:
+        MODEL_CACHE.mkdir(parents=True, exist_ok=True)
+        log(f"loading model {model_name} on {device}/{compute_type}")
+        self.tray.status("Loading")
+        return WhisperModel(
+            model_name,
+            device=device,
+            compute_type=compute_type,
+            download_root=str(MODEL_CACHE),
+            local_files_only=LOCAL_FILES_ONLY,
+            cpu_threads=1,
+            num_workers=1,
+        )
+
+    def _switch_to_cpu_locked(self, reason: BaseException) -> None:
+        self.model = None
+        self.error = None
+        self.model_name = CPU_FALLBACK_MODEL
+        self.device = "cpu"
+        self.compute_type = CPU_FALLBACK_COMPUTE
+        log(f"CUDA unavailable; falling back to {CPU_FALLBACK_MODEL} on cpu/{CPU_FALLBACK_COMPUTE}: {reason!r}")
+
+    def fallback_to_cpu(self, reason: BaseException) -> WhisperModel:
+        with self.condition:
+            if self.device == "cpu" and self.model is not None:
+                return self.model
+            if self.loading:
+                while self.loading and self.model is None:
+                    self.condition.wait()
+                if self.device == "cpu" and self.model is not None:
+                    return self.model
+            self._switch_to_cpu_locked(reason)
+        return self.get()
 
     def get(self) -> WhisperModel:
         with self.condition:
@@ -486,27 +577,41 @@ class ModelManager:
             self.loading = True
 
         try:
-            MODEL_CACHE.mkdir(parents=True, exist_ok=True)
-            log(f"loading model {MODEL_NAME} on {DEVICE}/{COMPUTE_TYPE}")
-            self.tray.status("Loading")
-            model = WhisperModel(
-                MODEL_NAME,
-                device=DEVICE,
-                compute_type=COMPUTE_TYPE,
-                download_root=str(MODEL_CACHE),
-                local_files_only=LOCAL_FILES_ONLY,
-                cpu_threads=1,
-                num_workers=1,
-            )
-            log(f"model ready: {MODEL_NAME}")
+            model = self._load_model(self.model_name, self.device, self.compute_type)
+            log(f"model ready: {self.model_name} on {self.device}/{self.compute_type}")
             self.tray.status("Ready")
+            notify_ready()
         except Exception as exc:
+            if self.can_fallback_to_cpu(exc):
+                with self.condition:
+                    self._switch_to_cpu_locked(exc)
+                try:
+                    model = self._load_model(self.model_name, self.device, self.compute_type)
+                    log(f"model ready: {self.model_name} on {self.device}/{self.compute_type}")
+                    self.tray.status("Ready")
+                    notify_ready()
+                except Exception as fallback_exc:
+                    self.tray.status("Error")
+                    with self.condition:
+                        self.error = fallback_exc
+                        self.loading = False
+                        self.condition.notify_all()
+                    raise
+            else:
+                self.tray.status("Error")
+                with self.condition:
+                    self.error = exc
+                    self.loading = False
+                    self.condition.notify_all()
+                raise
+
+        if model is None:
             self.tray.status("Error")
             with self.condition:
-                self.error = exc
+                self.error = RuntimeError("model failed to load")
                 self.loading = False
                 self.condition.notify_all()
-            raise
+            raise self.error
 
         with self.condition:
             self.model = model
@@ -526,18 +631,34 @@ def transcribe(recording: Recording, model_manager: ModelManager) -> str:
     initial_prompt = None
     if hotwords:
         initial_prompt = f"Prefer these local custom vocabulary terms when they fit the audio: {hotwords}."
-        log(f"using custom vocabulary terms: {vocabulary_count}")
-    segments, _ = model.transcribe(
-        str(audio_path),
-        beam_size=BEAM_SIZE,
-        language=LANGUAGE,
-        vad_filter=VAD_FILTER,
-        condition_on_previous_text=False,
-        temperature=0.0,
-        no_speech_threshold=NO_SPEECH_THRESHOLD,
-        initial_prompt=initial_prompt,
-        hotwords=hotwords,
-    )
+        log(f"using custom vocabulary terms: {vocabulary_count}; prompt_chars={len(hotwords)}")
+    try:
+        segments, _ = model.transcribe(
+            str(audio_path),
+            beam_size=BEAM_SIZE,
+            language=LANGUAGE,
+            vad_filter=VAD_FILTER,
+            condition_on_previous_text=False,
+            temperature=0.0,
+            no_speech_threshold=NO_SPEECH_THRESHOLD,
+            initial_prompt=initial_prompt,
+            hotwords=hotwords,
+        )
+    except Exception as exc:
+        if not model_manager.can_fallback_to_cpu(exc):
+            raise
+        model = model_manager.fallback_to_cpu(exc)
+        segments, _ = model.transcribe(
+            str(audio_path),
+            beam_size=BEAM_SIZE,
+            language=LANGUAGE,
+            vad_filter=VAD_FILTER,
+            condition_on_previous_text=False,
+            temperature=0.0,
+            no_speech_threshold=NO_SPEECH_THRESHOLD,
+            initial_prompt=initial_prompt,
+            hotwords=hotwords,
+        )
     return " ".join(segment.text.strip() for segment in segments).strip()
 
 
@@ -559,8 +680,9 @@ class HoldToDictate:
         self.busy_since = 0.0
         self.phase = "idle"
         self.focus_id: int | None = None
+        self.sticky_recording = False
 
-    def start(self) -> None:
+    def start(self, *, sticky: bool = False) -> None:
         with self.lock:
             if self.recorder is not None or self.busy:
                 busy_for = time.monotonic() - self.busy_since if self.busy_since else 0.0
@@ -578,10 +700,12 @@ class HoldToDictate:
             self.busy = True
             self.busy_since = time.monotonic()
             self.phase = "starting"
+            self.sticky_recording = sticky
 
         try:
             self.tray.status("Listening")
-            self.overlay.show("Listening", "hold left Ctrl + left Windows")
+            self.overlay.show("Listening", "press Space or Ctrl+Super to stop" if sticky else "hold left Ctrl + left Windows")
+            self.overlay.sticky(sticky)
             if START_TONE_BEFORE_RECORD:
                 tone("start", wait=True)
             self.recorder.start()
@@ -597,9 +721,21 @@ class HoldToDictate:
                 self.busy = False
                 self.busy_since = 0.0
                 self.phase = "idle"
+                self.sticky_recording = False
             self.tray.status("Error")
+            self.overlay.sticky(False)
             self.overlay.show("Error", "could not start microphone")
             self.overlay.hide(1800)
+
+    def set_sticky(self, active: bool) -> None:
+        with self.lock:
+            if self.recorder is None or not self.busy:
+                return
+            self.sticky_recording = active
+        self.overlay.sticky(active)
+        if active:
+            self.overlay.show("Listening", "press Space or Ctrl+Super to stop")
+            log("sticky recording enabled")
 
     def stop(self) -> None:
         with self.lock:
@@ -607,6 +743,9 @@ class HoldToDictate:
             self.recorder = None
             focus_id = self.focus_id
             self.focus_id = None
+            self.sticky_recording = False
+
+        self.overlay.sticky(False)
 
         if recorder is None:
             with self.lock:
@@ -702,6 +841,91 @@ class HoldToDictate:
                 self.busy = False
                 self.busy_since = 0.0
                 self.phase = "idle"
+                self.sticky_recording = False
+
+
+class HotkeyStateMachine:
+    def __init__(
+        self,
+        *,
+        chord_grace_seconds: float = CHORD_GRACE_SECONDS,
+        retrigger_cooldown_seconds: float = RETRIGGER_COOLDOWN_SECONDS,
+        max_record_seconds: float = MAX_RECORD_SECONDS,
+    ) -> None:
+        self.chord_grace_seconds = chord_grace_seconds
+        self.retrigger_cooldown_seconds = retrigger_cooldown_seconds
+        self.max_record_seconds = max_record_seconds
+        self.chord_active = False
+        self.sticky_active = False
+        self.sticky_stop_armed = False
+        self.active_since = 0.0
+        self.gesture_consumed = False
+        self.cooldown_until = 0.0
+        self.last_seen_down = {"left_control": 0.0, "left_super": 0.0}
+        self.last_space_down = False
+        self.last_chord_down = False
+
+    def update(self, ctrl_down: bool, super_down: bool, space_down: bool, now: float) -> tuple[list[str], bool]:
+        actions: list[str] = []
+        if ctrl_down:
+            self.last_seen_down["left_control"] = now
+        if super_down:
+            self.last_seen_down["left_super"] = now
+
+        hotkey_any_down = ctrl_down or super_down
+        trigger_any_down = hotkey_any_down or space_down
+        chord_down = ctrl_down and super_down
+        recently_chorded = (
+            hotkey_any_down
+            and now - self.last_seen_down["left_control"] <= self.chord_grace_seconds
+            and now - self.last_seen_down["left_super"] <= self.chord_grace_seconds
+        )
+
+        if not trigger_any_down:
+            self.gesture_consumed = False
+            if self.sticky_active:
+                self.sticky_stop_armed = True
+
+        if not self.chord_active:
+            if recently_chorded and not self.gesture_consumed and now >= self.cooldown_until:
+                self.chord_active = True
+                self.active_since = now
+                self.gesture_consumed = True
+                if space_down:
+                    self.sticky_active = True
+                    self.sticky_stop_armed = False
+                    actions.append("start_sticky")
+                else:
+                    actions.append("start_normal")
+        elif self.sticky_active:
+            space_pressed = space_down and not self.last_space_down
+            chord_pressed = chord_down and not self.last_chord_down
+            if self.sticky_stop_armed and (space_pressed or chord_pressed):
+                self._finish(now)
+                actions.append("stop_sticky")
+        else:
+            space_pressed = space_down and not self.last_space_down
+            if space_pressed and recently_chorded:
+                self.sticky_active = True
+                self.sticky_stop_armed = False
+                actions.append("enable_sticky")
+            elif not hotkey_any_down:
+                self._finish(now)
+                actions.append("stop_normal")
+            elif self.max_record_seconds > 0 and now - self.active_since >= self.max_record_seconds:
+                self._finish(now)
+                actions.append("auto_stop")
+
+        self.last_space_down = space_down
+        self.last_chord_down = chord_down
+        return actions, trigger_any_down
+
+    def _finish(self, now: float) -> None:
+        self.chord_active = False
+        self.sticky_active = False
+        self.sticky_stop_armed = False
+        self.active_since = 0.0
+        self.cooldown_until = now + self.retrigger_cooldown_seconds
 
 
 def main() -> None:
@@ -721,70 +945,45 @@ def main() -> None:
 
     left_control = control_display.keysym_to_keycode(XK.string_to_keysym("Control_L"))
     left_super = control_display.keysym_to_keycode(XK.string_to_keysym("Super_L"))
-    if not left_control or not left_super:
-        raise SystemExit("Could not resolve Control_L/Super_L keycodes")
+    space = control_display.keysym_to_keycode(XK.string_to_keysym("space"))
+    if not left_control or not left_super or not space:
+        raise SystemExit("Could not resolve Control_L/Super_L/space keycodes")
 
     state_lock = threading.Lock()
-    chord_active = False
-    active_since = 0.0
-    gesture_consumed = False
-    cooldown_until = 0.0
-    last_seen_down = {"left_control": 0.0, "left_super": 0.0}
+    hotkey_state = HotkeyStateMachine()
     wake_state = threading.Event()
     stop_poller = threading.Event()
 
     def key_is_down(keymap: list[int], keycode: int) -> bool:
         return bool(keymap[keycode // 8] & (1 << (keycode % 8)))
 
-    def apply_physical_state(ctrl_down: bool, super_down: bool, reason: str) -> None:
-        nonlocal chord_active, active_since, cooldown_until, gesture_consumed
-        should_start = False
-        should_stop = False
+    def apply_physical_state(ctrl_down: bool, super_down: bool, space_down: bool, reason: str) -> None:
         now = time.monotonic()
-
         with state_lock:
-            if ctrl_down:
-                last_seen_down["left_control"] = now
-            if super_down:
-                last_seen_down["left_super"] = now
-
-            any_down = ctrl_down or super_down
-            if any_down:
+            actions, any_trigger_down = hotkey_state.update(ctrl_down, super_down, space_down, now)
+            if any_trigger_down:
                 all_hotkey_keys_up.clear()
             else:
                 all_hotkey_keys_up.set()
-                gesture_consumed = False
 
-            recently_chorded = (
-                any_down
-                and now - last_seen_down["left_control"] <= CHORD_GRACE_SECONDS
-                and now - last_seen_down["left_super"] <= CHORD_GRACE_SECONDS
-            )
-
-            if recently_chorded and not chord_active and not gesture_consumed and now >= cooldown_until:
-                chord_active = True
-                active_since = now
-                gesture_consumed = True
-                should_start = True
-            elif chord_active and not any_down:
-                chord_active = False
-                active_since = 0.0
-                cooldown_until = now + RETRIGGER_COOLDOWN_SECONDS
-                should_stop = True
-            elif chord_active and MAX_RECORD_SECONDS > 0 and now - active_since >= MAX_RECORD_SECONDS:
-                chord_active = False
-                active_since = 0.0
-                cooldown_until = now + RETRIGGER_COOLDOWN_SECONDS
+        for action in actions:
+            if action == "start_normal":
+                log(f"hotkey state -> recording ({reason})")
+                app.start()
+            elif action == "start_sticky":
+                log(f"hotkey state -> sticky recording ({reason})")
+                app.start(sticky=True)
+            elif action == "enable_sticky":
+                log(f"hotkey state -> sticky latched ({reason})")
+                app.set_sticky(True)
+            elif action in {"stop_normal", "stop_sticky"}:
+                log(f"hotkey state -> finishing ({reason})")
+                app.stop()
+            elif action == "auto_stop":
                 all_hotkey_keys_up.set()
-                should_stop = True
                 log(f"recording auto-stopped after {MAX_RECORD_SECONDS:g}s limit")
-
-        if should_start:
-            log(f"hotkey state -> recording ({reason})")
-            app.start()
-        elif should_stop:
-            log(f"hotkey state -> finishing ({reason})")
-            app.stop()
+                log(f"hotkey state -> finishing ({reason})")
+                app.stop()
 
     def poll_physical_keys() -> None:
         poll_display = display.Display()
@@ -794,6 +993,7 @@ def main() -> None:
                 apply_physical_state(
                     key_is_down(keymap, left_control),
                     key_is_down(keymap, left_super),
+                    key_is_down(keymap, space),
                     "poll",
                 )
                 wake_state.wait(KEY_POLL_INTERVAL_SECONDS)
@@ -804,7 +1004,7 @@ def main() -> None:
     threading.Thread(target=poll_physical_keys, name="bynum-dictate-key-poller", daemon=True).start()
 
     def handle_event(event) -> None:
-        if event.type not in (X.KeyPress, X.KeyRelease) or event.detail not in (left_control, left_super):
+        if event.type not in (X.KeyPress, X.KeyRelease) or event.detail not in (left_control, left_super, space):
             return
         wake_state.set()
 
@@ -835,7 +1035,10 @@ def main() -> None:
         ],
     )
 
-    log(f"started hold-to-dictate; hotkey is left Control + left Super ({left_control}+{left_super})")
+    log(
+        "started hold-to-dictate; hotkey is left Control + left Super "
+        f"({left_control}+{left_super}); sticky toggle adds Space ({space})"
+    )
     _ = lock
 
     try:
